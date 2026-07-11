@@ -1,0 +1,133 @@
+#devMode: true 将打开数据库调试输出，日志级别设为debug
+devMode: false
+#embededMode: true ，整合静态资源模式
+embededMode: true
+#服务器模式：single 单机、server：单服务器，cluster：集群，ott：OTT
+serverMode: ott
+
+path:
+  http:
+    root: /video #歌曲http下载根路径
+  video:
+    root: /video # 歌曲本地磁盘根路径
+    cloud: /cloud-song
+    local: /local-song
+    udisk: /udisk-song
+#    pubPlay: /pub-play
+    upload: /upload
+    userMv: /user-mv # 伴奏带
+    storeMv: /store-mv # 门店伴奏带
+    lsy: /lsy # disco歌曲使用的流水影背景视频位置
+  image:
+    root: /image # 图片本地磁盘根路径
+    singerAvatar: /singer
+    playlistCover: /playlist
+    skinAvatar: /skin-avatar # 皮肤包效果图位置
+  skinGroup:
+    root: /data/skinGroup # 皮肤包zip位置
+  rating:
+    root: /rating # 评分文件
+  liushuiying:
+    root: /data/liushuiying
+  lyrics:
+    root: /lyrics # 歌词文件根路径
+#  scriptLogs:
+#    fatalLog: ../__common/script_log/muse-local-server.error # 崩溃日志文件，若搜不到，后面加*搜索更新时间最小的
+#    upgradeLog: ../__common/script_log/upgrade_muse.log
+  db: /__common/db
+  logs:  /__common/logs
+  backup:
+    db:  /__common/backup/sqlite
+#  upgrade: ../__common/download/upgrade
+
+cache: true
+udisk: true
+
+disk:                                #所有磁盘相关的服务配置，无特殊说明，单位：GB
+  enable: false                       #磁盘相关检查功能是否启用，启用后，发现磁盘剩余空间过小，会启动删除功能，先删除下架歌曲，然后低热度值歌曲
+#  cleanSongByBlockAt: 7               #删除磁盘歌曲时，歌曲下架时间超过7天则删除源文件，（ott模式不适用）单位天
+#  cleanSongByHotScore: false          #是否删除低热度值歌曲（ott模式不适用）
+  #  videoMinFreeSpace: 50              #磁盘剩余空间小于该值时，清除低热度值文件（ott模式不适用）
+#  videoCleanSpace: 20                #每次磁盘清理热度值文件时，清除的磁盘大小（ott模式不适用）
+  downloadMinFreeSpace: 1024          #磁盘剩余空间小于该值时，返回不能下载（仅ott模式）单位：MB
+  rootMinFreeSpace: 1024              # 内部存储最小剩余空间，小于该值时，不能升级数据库（仅ott模式），单位:MB
+  autoSearch: true # ott模式下，是否开机扫描最大的外部存储
+  songPathDistribeStrategy: 1 # 歌曲存储策略，1：有外部存储时，存入外部存储中剩余空间最大的存储。其他：存入存储剩余空间最大的存储
+
+cloud:              #所有云端相关的服务配置
+  song:             #曲库相关配置
+    apiEnable: true #下载云端歌曲的api接口是否开放
+    enable: true    #是否开启云端歌曲文件下载
+
+sqlite:
+  maxIdleConns: 10
+  maxOpenConns: 1
+  mmapSize: 0 # mmap配置，为小于等于0则不启用，单位MB
+
+dbsync:
+  localHotScoreCount: 500 # 热度值同步分页每页数量
+
+backup:
+  db:
+    filelimit: 1
+
+#liushuiyingMap:
+#  kuosan.mp4: https://pub.cdn.idun.ikonline.cn/kuosan.mp4
+#  lizi.ts:    https://pub.cdn.idun.ikonline.cn/lizi.ts
+#  suidao.ts: https://pub.cdn.idun.ikonline.cn/suidao.ts
+liushuiyingBackground:
+  default:
+    - kuosan.mp4
+    - lizi.ts
+    - suidao.ts
+  og3a:
+    - liushuiying01.ts
+    - liushuiying02.ts
+    - liushuiying03.ts
+
+lsyDir: # 外部存储/video/lsy目录下的子目录，除default外，对应为标签名
+  - disco
+  - default
+
+searchSkipDir:
+  - score
+  - singer
+  - img
+
+mls:
+  nginx:
+    port: 8350
+  http:
+    port: 8150
+  udp:
+    port: 8450
+mad:
+  http:
+    port: 9050
+
+# 云端conn域名
+mpc:
+  ws:
+    domain: mws.cherryonline.cn
+
+qiniu:
+  domain: pub.mcdn.cherryonline.cn
+
+#iris server config
+disablePathCorrection: false
+enablePathEscape: false
+fireMethodNotAllowed: true
+disableBodyConsumptionOnUnmarshal: true
+timeFormat: Mon, 01 Jan 2006 15:04:05 GMT
+charset: UTF-8
+
+publicKey: |
+  -----BEGIN PUBLIC KEY-----
+  MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAucL0oFErd7REM6TSNa3E
+  ZdN1YaOs4J1eCybLPyoQ9ru3q1HU67agC9FzhrCG/RvAQUya5iPmQ8Caed05vqcC
+  VcyJChmkSOGQ7DVShe2rGuTMNlpoRV6UzfcraaVS++7m2K/+kSZJ8OAhhhVuqPru
+  MjsFYpdtstAwvyZT28b+eENwzpp9UHqsooZc7FZ0H8kTbs6XMkw4nIWo+4HoPAhN
+  LEY+xdHvwY6drF/3WDTvsaoMrs73TVQCEEHzZNIz2H/is9VLMnIyOfnfcJi9br78
+  Fj2xHzxu3sAySBOTVLmUMxqYh/g1ox5OXGcW93HJkQLkBi42tFAEkWYlYyl93+jb
+  bQIDAQAB
+  -----END PUBLIC KEY-----

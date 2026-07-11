@@ -1,0 +1,9 @@
+.gradle/
+.idea/
+local.properties
+**/build/
+*.png
+*.xml.bak
+database_publish/muse.db
+database_publish/muse.db.reassembled
+

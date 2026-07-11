@@ -1,0 +1,55 @@
+{
+    "version":  1,
+    "size":  969072640,
+    "sha256":  "592ca5c656638d33e93062f8fc1eba06b1151990ee00d96c7b8d197890503394",
+    "chunks":  [
+                   {
+                       "url":  "muse.db.part000",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part001",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part002",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part003",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part004",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part005",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part006",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part007",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part008",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part009",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part010",
+                       "size":  83886080
+                   },
+                   {
+                       "url":  "muse.db.part011",
+                       "size":  46325760
+                   }
+               ]
+}
