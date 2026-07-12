@@ -235,6 +235,15 @@ class SongListAdapter(
             }
             false
         }
+        view.onFocusChangeListener = View.OnFocusChangeListener { target, focused ->
+            target.animate()
+                .scaleX(if (focused) 1.025f else 1f)
+                .scaleY(if (focused) 1.025f else 1f)
+                .alpha(if (focused) 1f else 0.96f)
+                .setDuration(100L)
+                .start()
+            target.isSelected = focused
+        }
     }
 
     private fun dp(value: Int): Int = (value * density + 0.5f).toInt()

@@ -71,6 +71,15 @@ class SettingsListAdapter(
             }
 
             if (entry.checked == null) setOnClickListener { entry.action() }
+            onFocusChangeListener = View.OnFocusChangeListener { view, focused ->
+                view.animate()
+                    .scaleX(if (focused) 1.015f else 1f)
+                    .scaleY(if (focused) 1.015f else 1f)
+                    .alpha(if (focused) 1f else 0.96f)
+                    .setDuration(100L)
+                    .start()
+                view.isSelected = focused
+            }
         }
     }
 

@@ -2,6 +2,7 @@ package com.local.ktv
 
 import android.util.Log
 import com.liulishuo.okdownload.DownloadTask as OkDownloadTask
+import com.liulishuo.okdownload.OkDownload
 import com.liulishuo.okdownload.core.breakpoint.BreakpointInfo
 import com.liulishuo.okdownload.core.cause.EndCause
 import com.liulishuo.okdownload.core.cause.ResumeFailedCause
@@ -9,12 +10,14 @@ import com.liulishuo.okdownload.core.listener.DownloadListener2
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
 
 object SongOkDownloadManager {
     private const val TAG = "SongDownload"
     const val MIN_VALID_FILE_SIZE = 6L * 1024L * 1024L
-    private const val MAX_RETRY_COUNT = 2
+    private const val MAX_RETRY_COUNT = 3
+    private const val STALL_TIMEOUT_MS = 25_000L
 
     interface DownloadCallback {
         fun onDownloadStart(song: Song)
@@ -29,7 +32,10 @@ object SongOkDownloadManager {
     private val callbacks = ConcurrentHashMap<String, DownloadCallback>()
     private val progress = ConcurrentHashMap<String, Int>()
     private val totalLengths = ConcurrentHashMap<String, Long>()
+    private val forcedRetryReasons = ConcurrentHashMap<String, String>()
+    private val manuallyCanceled = ConcurrentHashMap.newKeySet<String>()
     private val io = Executors.newFixedThreadPool(4)
+    private val watchdog = Executors.newSingleThreadScheduledExecutor()
 
     @JvmStatic
     fun getLocalFile(song: Song): File {
@@ -72,11 +78,11 @@ object SongOkDownloadManager {
                 val url = buildDownloadUrl(song)
                 if (url.isEmpty()) {
                     pending.remove(key)
-                    callback?.onDownloadFailed(song, "无法生成下载URL")
+                    callback?.onDownloadFailed(song, "无法生成下载地址")
                 } else {
                     startDownloadTask(song, url, callback, 0)
                 }
-            } catch (error: Exception) {
+            } catch (error: Throwable) {
                 pending.remove(key)
                 callback?.onDownloadFailed(song, error.message ?: "下载初始化失败")
             }
@@ -87,7 +93,11 @@ object SongOkDownloadManager {
     fun cancelDownload(song: Song) {
         val key = songKey(song)
         pending.remove(key)
-        tasks.remove(key)?.cancel()
+        tasks.remove(key)?.let { task ->
+            manuallyCanceled.add(key)
+            task.cancel()
+            clearBrokenDownload(task, getLocalFile(song))
+        }
         callbacks.remove(key)
         progress.remove(key)
         totalLengths.remove(key)
@@ -100,7 +110,7 @@ object SongOkDownloadManager {
         if (!forceRefresh) song.downloadUrl?.takeIf(String::isNotBlank)?.let { return it }
         val musicNo = song.filename?.removeSuffix(".ts")?.removeSuffix(".ls") ?: song.id
         return SongApiClient.getSongDownloadUrl(musicNo).orEmpty().also { url ->
-            if (url.isNotEmpty()) song.downloadUrl = url else Log.w(TAG, "无法获取下载URL: ${song.title}")
+            if (url.isNotEmpty()) song.downloadUrl = url else Log.w(TAG, "Unable to get download URL: ${song.title}")
         }
     }
 
@@ -113,6 +123,7 @@ object SongOkDownloadManager {
         val task = OkDownloadTask.Builder(url, partial.parentFile!!)
             .setFilename(partial.name)
             .setPassIfAlreadyCompleted(false)
+            .setMinIntervalMillisCallbackProcess(250)
             .build()
         tasks[key] = task
         pending.remove(key)
@@ -120,10 +131,13 @@ object SongOkDownloadManager {
         progress[key] = 0
         totalLengths[key] = 0
         val downloaded = AtomicLong(0)
+        val lastActivityAt = AtomicLong(System.currentTimeMillis())
         var httpResponseCode = 0
 
+        scheduleStallCheck(song, task, lastActivityAt, attempt)
         task.enqueue(object : DownloadListener2() {
             override fun taskStart(task: OkDownloadTask) {
+                lastActivityAt.set(System.currentTimeMillis())
                 callbacks[key]?.onDownloadStart(song)
             }
 
@@ -134,6 +148,7 @@ object SongOkDownloadManager {
                 responseHeaderFields: MutableMap<String, MutableList<String>>,
             ) {
                 httpResponseCode = responseCode
+                lastActivityAt.set(System.currentTimeMillis())
             }
 
             override fun downloadFromBeginning(task: OkDownloadTask, info: BreakpointInfo, cause: ResumeFailedCause) {
@@ -146,81 +161,156 @@ object SongOkDownloadManager {
             }
 
             override fun fetchProgress(task: OkDownloadTask, blockIndex: Int, increaseBytes: Long) {
+                if (increaseBytes > 0) lastActivityAt.set(System.currentTimeMillis())
                 val total = totalLengths[key] ?: return
                 if (total <= 0) return
-                val value = (downloaded.addAndGet(increaseBytes) * 100 / total).toInt().coerceIn(0, 100)
+                val value = (downloaded.addAndGet(increaseBytes) * 100 / total).toInt().coerceIn(0, 98)
                 progress[key] = value
-                callbacks[key]?.let { cb ->
-                    cb.onDownloadProgress(song, value)
-                }
+                callbacks[key]?.onDownloadProgress(song, value)
             }
 
             override fun taskEnd(task: OkDownloadTask, cause: EndCause, realCause: Exception?) {
-                tasks.remove(key)
-                progress.remove(key)
+                tasks.remove(key, task)
                 totalLengths.remove(key)
                 val cb = callbacks.remove(key)
+                val forcedReason = forcedRetryReasons.remove(key)
+                if (manuallyCanceled.remove(key)) return
                 if (cause != EndCause.COMPLETED) {
-                    val retryable = httpResponseCode == 403 || realCause?.message?.contains("403") == true
+                    val retryable = forcedReason != null || cause != EndCause.CANCELED
                     if (retryable && attempt < MAX_RETRY_COUNT) {
-                        retry(song, cb, attempt + 1, "HTTP 403")
-                        return
-                    }
-                    cb?.onDownloadFailed(song, cause.name + (realCause?.message?.let { ": $it" } ?: ""))
-                    return
-                }
-                var downloadedFile = task.file ?: partial
-                if (TsDecryptor.isEncrypted(downloadedFile)) {
-                    val decrypted = File(downloadedFile.parentFile, "${downloadedFile.name}.decrypted")
-                    val decryptedOk = TsDecryptor.decryptFile(downloadedFile, decrypted)
-                    val replaced = decryptedOk && downloadedFile.delete() && decrypted.renameTo(downloadedFile)
-                    if (!replaced) {
-                        downloadedFile.delete()
-                        decrypted.delete()
-                        if (attempt < MAX_RETRY_COUNT) {
-                            retry(song, cb, attempt + 1, "decrypt failed")
-                        } else {
-                            cb?.onDownloadFailed(song, "歌曲解密失败，异常文件已删除")
-                        }
-                        return
-                    }
-                    downloadedFile = task.file ?: partial
-                }
-                if (!downloadedFile.exists() || downloadedFile.length() < MIN_VALID_FILE_SIZE) {
-                    val size = downloadedFile.takeIf(File::exists)?.length() ?: 0L
-                    downloadedFile.delete()
-                    if (attempt < MAX_RETRY_COUNT) {
-                        retry(song, cb, attempt + 1, "file too small: $size")
+                        clearBrokenDownload(task, target)
+                        val response = if (httpResponseCode > 0) " HTTP $httpResponseCode" else ""
+                        retry(song, cb, attempt + 1, forcedReason ?: "${cause.name}$response")
                     } else {
-                        cb?.onDownloadFailed(song, "下载文件小于6MB，已丢弃")
+                        pending.remove(key)
+                        progress.remove(key)
+                        cb?.onDownloadFailed(song, cause.name + (realCause?.message?.let { ": $it" } ?: ""))
                     }
                     return
                 }
-                if (target.exists() && !target.delete()) {
-                    cb?.onDownloadFailed(song, "无法替换旧的歌曲文件")
-                    return
-                }
-                if (!downloadedFile.renameTo(target)) {
-                    cb?.onDownloadFailed(song, "下载文件落盘失败")
-                    return
-                }
-                song.path = target.absolutePath
-                cb?.onDownloadComplete(song, target.absolutePath)
+                pending.add(key)
+                progress[key] = 99
+                cb?.onDownloadProgress(song, 99)
+                io.execute { finalizeDownload(song, task, target, partial, cb, attempt) }
             }
         })
+    }
+
+    private fun finalizeDownload(
+        song: Song,
+        task: OkDownloadTask,
+        target: File,
+        partial: File,
+        callback: DownloadCallback?,
+        attempt: Int,
+    ) {
+        val key = songKey(song)
+        try {
+            var downloadedFile = task.file ?: partial
+            if (!downloadedFile.exists() || downloadedFile.length() < MIN_VALID_FILE_SIZE) {
+                val size = downloadedFile.takeIf(File::exists)?.length() ?: 0L
+                clearBrokenDownload(task, target)
+                retryOrFail(song, callback, attempt, "file too small: $size", "下载文件异常，已自动清理")
+                return
+            }
+            if (TsDecryptor.isEncrypted(downloadedFile)) {
+                val decrypted = File(downloadedFile.parentFile, "${downloadedFile.name}.decrypted")
+                decrypted.delete()
+                val decryptedOk = TsDecryptor.decryptFile(downloadedFile, decrypted)
+                val replaced = decryptedOk && downloadedFile.delete() && decrypted.renameTo(downloadedFile)
+                if (!replaced) {
+                    clearBrokenDownload(task, target)
+                    retryOrFail(song, callback, attempt, "decrypt failed", "歌曲解密失败，异常文件已删除")
+                    return
+                }
+                downloadedFile = task.file ?: partial
+            }
+            if (target.exists() && !target.delete()) {
+                pending.remove(key)
+                progress.remove(key)
+                callback?.onDownloadFailed(song, "无法替换旧的歌曲文件")
+                return
+            }
+            if (!downloadedFile.renameTo(target)) {
+                clearBrokenDownload(task, target)
+                retryOrFail(song, callback, attempt, "rename failed", "下载文件落盘失败")
+                return
+            }
+            pending.remove(key)
+            progress.remove(key)
+            song.path = target.absolutePath
+            callback?.onDownloadProgress(song, 100)
+            callback?.onDownloadComplete(song, target.absolutePath)
+        } catch (error: Throwable) {
+            Log.e(TAG, "Finalizing download failed: ${song.title}", error)
+            clearBrokenDownload(task, target)
+            retryOrFail(song, callback, attempt, error.message ?: "finalize failed", "下载文件处理失败")
+        }
+    }
+
+    private fun retryOrFail(
+        song: Song,
+        callback: DownloadCallback?,
+        attempt: Int,
+        reason: String,
+        terminalMessage: String,
+    ) {
+        if (attempt < MAX_RETRY_COUNT) {
+            retry(song, callback, attempt + 1, reason)
+        } else {
+            val key = songKey(song)
+            pending.remove(key)
+            progress.remove(key)
+            callback?.onDownloadFailed(song, terminalMessage)
+        }
+    }
+
+    private fun scheduleStallCheck(
+        song: Song,
+        task: OkDownloadTask,
+        lastActivityAt: AtomicLong,
+        attempt: Int,
+    ) {
+        watchdog.schedule({
+            val key = songKey(song)
+            if (tasks[key] !== task) return@schedule
+            val idleMs = System.currentTimeMillis() - lastActivityAt.get()
+            if (idleMs >= STALL_TIMEOUT_MS) {
+                Log.w(TAG, "Download stalled for ${idleMs}ms: ${song.title}, attempt=$attempt")
+                forcedRetryReasons[key] = "stalled for ${idleMs}ms"
+                task.cancel()
+            } else {
+                scheduleStallCheck(song, task, lastActivityAt, attempt)
+            }
+        }, STALL_TIMEOUT_MS, TimeUnit.MILLISECONDS)
+    }
+
+    private fun clearBrokenDownload(task: OkDownloadTask, target: File) {
+        runCatching { OkDownload.with().breakpointStore().remove(task.id) }
+        val partial = task.file ?: File(target.parentFile, "${target.name}.download")
+        if (partial.absolutePath != target.absolutePath) partial.delete()
+        File(partial.parentFile, "${partial.name}.decrypted").delete()
     }
 
     private fun retry(song: Song, callback: DownloadCallback?, attempt: Int, reason: String) {
         Log.w(TAG, "Retrying ${song.title}, attempt=$attempt, reason=$reason")
         val key = songKey(song)
         pending.add(key)
+        progress[key] = 0
+        callback?.onDownloadProgress(song, 0)
         song.downloadUrl = null
         SongApiClient.clearTokenCache()
         io.execute {
+            Thread.sleep((attempt * 750L).coerceAtMost(2_250L))
             val url = runCatching { buildDownloadUrl(song, forceRefresh = true) }.getOrDefault("")
             if (url.isEmpty()) {
-                pending.remove(key)
-                callback?.onDownloadFailed(song, "刷新下载地址失败")
+                if (attempt < MAX_RETRY_COUNT) {
+                    retry(song, callback, attempt + 1, "refresh download URL failed")
+                } else {
+                    pending.remove(key)
+                    progress.remove(key)
+                    callback?.onDownloadFailed(song, "刷新下载地址失败")
+                }
             } else {
                 startDownloadTask(song, url, callback, attempt)
             }

@@ -71,6 +71,15 @@ class PlaylistGridAdapter(
             }
             false
         }
+        onFocusChangeListener = View.OnFocusChangeListener { view, focused ->
+            view.animate()
+                .scaleX(if (focused) 1.04f else 1f)
+                .scaleY(if (focused) 1.04f else 1f)
+                .alpha(if (focused) 1f else 0.92f)
+                .setDuration(100L)
+                .start()
+            view.isSelected = focused
+        }
         setOnClickListener { onPlaylistClick(playlist) }
     }
 

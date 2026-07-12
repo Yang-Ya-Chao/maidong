@@ -380,11 +380,10 @@ class MainActivity : AppCompatActivity() {
         playbackEngine = KtvPlaybackEngine(applicationContext)
         // 初始化新布局的 UI 组件
         initTvLayout()
-        restoredState.currentSong?.let { restoredSong ->
-            val shouldResume = restoredState.playbackState != "paused"
+        val startupSong = restoredState.currentSong ?: orderQueue!!.firstOrNull()
+        startupSong?.let { restoredSong ->
             play(restoredSong)
-            playWhenPrepared = shouldResume
-            updateBottomBar(restoredSong, shouldResume)
+            updateBottomBar(restoredSong, true)
         }
         // Keep initialization on the loading state until the external catalog is ready.
         showDatabaseLoading(true, "正在初始化曲库...", null)
@@ -3997,11 +3996,14 @@ class MainActivity : AppCompatActivity() {
 
             override fun onDownloadReadyToPlay(s: Song) {}
             override fun onDownloadComplete(s: Song, localPath: String) {
-                // switchToLocalPlayback 已经在 downloadSong 回调中处理
+                main.post { hideDownloadProgress() }
             }
 
             override fun onDownloadFailed(s: Song, error: String) {
-                main.post(Runnable { toast("下载失败: " + error) })
+                main.post(Runnable {
+                    hideDownloadProgress()
+                    toast("下载失败: " + error)
+                })
             }
         })
     }
@@ -4719,7 +4721,10 @@ class MainActivity : AppCompatActivity() {
             val added = store.toggleFavorite(song)
             saveState()
             toast(if (added) "已收藏" else "已取消收藏")
-            if ("收藏" == currentPage) showFavorites()
+            if (browseMode == "favorites") {
+                visibleSongs.removeAll { stableId(it) == stableId(song) }
+                renderSongList()
+            }
         }, LinearLayout.LayoutParams(0, -2, 1f))
         if (hasLocalFile) {
             actions.addView(action(R.drawable.ott_ic_delete, "删除文件") {
@@ -5264,6 +5269,9 @@ class MainActivity : AppCompatActivity() {
     /** 当前分类索引  */
     private var currentCategoryIndex = 0
 
+    private var categoryParentPage = 0
+    private var categoryParentQuery = ""
+
     private fun label(text: String?, sp: Int, color: Int): TextView {
         val view = TextView(this)
         view.setText(text)
@@ -5519,9 +5527,7 @@ class MainActivity : AppCompatActivity() {
         movePlayerToHost(homePlayerHost)
 
         // 设置子页面返回按钮
-        if (btnBack != null) btnBack!!.setOnClickListener {
-            if (browseMode == "settings_section") showSettingsPage() else showHomePage()
-        }
+        if (btnBack != null) btnBack!!.setOnClickListener { navigateBack() }
 
         // 设置 Tab 导航
         setupTabs()
@@ -5552,6 +5558,7 @@ class MainActivity : AppCompatActivity() {
             homeCardFavorite, homeCardCategory, homePoster,
         ).forEach(::installPressFeedback)
         configureTvFocusNavigation()
+        prepareTvFocusableTree(window.decorView)
         btnTopSearch?.requestFocus()
 
         // 设置歌曲列表点击事件
@@ -5648,6 +5655,10 @@ class MainActivity : AppCompatActivity() {
         syncPlayerInfo()
         // 隐藏已点的子页面辅助控件
         if (subCategoryScroll != null) subCategoryScroll!!.setVisibility(View.GONE)
+        window.decorView.post {
+            prepareTvFocusableTree(window.decorView)
+            if (window.decorView.findFocus() == null) btnTopSearch?.requestFocus()
+        }
     }
 
     /**
@@ -5687,6 +5698,10 @@ class MainActivity : AppCompatActivity() {
             songList!!.setDividerHeight(dp(1))
         }
         movePlayerToHost(subPagePlayerHost)
+        window.decorView.post {
+            prepareTvFocusableTree(window.decorView)
+            if (window.decorView.findFocus() == null) btnBack?.requestFocus()
+        }
     }
 
     private fun updateContentFrameMargins(top: Int, bottom: Int) {
@@ -6463,6 +6478,22 @@ class MainActivity : AppCompatActivity() {
         loadCategoryPlaylistPage("")
     }
 
+    private fun returnToCategoryPlaylists() {
+        searchScope = "playlist"
+        activeSearchQuery = categoryParentQuery
+        setSearchText(categoryParentQuery)
+        currentTabIndex = 2
+        showSubPageShell("主页 / 分类")
+        setupTabs()
+        currentCategories.clear()
+        currentCategoryIndex = -1
+        updateCategories()
+        browseMode = "category_list"
+        browseParam = categoryParentQuery
+        browsePage = categoryParentPage
+        loadCategoryPlaylistPage(categoryParentQuery)
+    }
+
     private fun loadCategoryPlaylistPage(query: String = activeSearchQuery) {
         browseMode = "category_list"
         browseParam = query
@@ -6493,6 +6524,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openCategoryPlaylist(playlist: Array<String?>) {
+        categoryParentPage = browsePage
+        categoryParentQuery = activeSearchQuery
         clearSearchForFilterChange()
         showSubPageShell("主页 / 分类 / ${playlist.getOrNull(1).orEmpty()}")
         currentTabIndex = 2
@@ -6974,9 +7007,12 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        val downloadedFiles = downloadedSongDirectory().listFiles().orEmpty()
+        val downloadedFiles = MuseDatabase.songDirectories()
+            .flatMap { it.listFiles().orEmpty().asIterable() }
+            .distinctBy { it.name }
         downloadedFiles.filter {
-            it.isFile && !it.name.endsWith(".download") && it.length() < SongOkDownloadManager.MIN_VALID_FILE_SIZE
+            it.isFile && it.parentFile?.absolutePath == downloadedSongDirectory().absolutePath &&
+                !it.name.endsWith(".download") && it.length() < SongOkDownloadManager.MIN_VALID_FILE_SIZE
         }.forEach { invalid ->
             cleanupSidecars(invalid)
             invalid.delete()
@@ -8232,16 +8268,35 @@ class MainActivity : AppCompatActivity() {
                 exitFullScreenPlayer()
                 return true
             }
-            if (browseMode == "settings_section") {
-                showSettingsPage()
-                return true
-            }
             if (currentTabIndex != -1 || "首页" != currentPage) {
-                showHomePage()
+                navigateBack()
                 return true
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) window.decorView.post { prepareTvFocusableTree(window.decorView) }
+    }
+
+    private fun navigateBack() {
+        when (browseMode) {
+            "playlist_id" -> returnToCategoryPlaylists()
+            "settings_section" -> showSettingsPage()
+            else -> showHomePage()
+        }
+    }
+
+    private fun prepareTvFocusableTree(view: View) {
+        if (view.isClickable && view.visibility == View.VISIBLE && view.isEnabled) {
+            view.isFocusable = true
+            view.isFocusableInTouchMode = false
+        }
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) prepareTvFocusableTree(view.getChildAt(index))
+        }
     }
 
     private fun showFavorites() {
