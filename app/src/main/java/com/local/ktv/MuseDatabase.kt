@@ -397,6 +397,12 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = findData
         return result
     }
 
+    /** Songs imported or downloaded by earlier app versions keep their directory in songs.path. */
+    fun localPathSongs(): MutableList<Song> = songs(
+        "$SONG_SELECT WHERE s.available=1 AND s.deleted_at IS NULL " +
+            "AND s.path IS NOT NULL AND TRIM(s.path) != ''",
+    )
+
     private fun songs(sql: String, args: Array<String>? = null): MutableList<Song> = rows(sql, args, ::songFromCursor)
 
     private fun songFromCursor(cursor: Cursor): Song = Song().apply {

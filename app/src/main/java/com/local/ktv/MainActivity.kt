@@ -6,6 +6,7 @@ import android.content.DialogInterface
 import android.content.DialogInterface.OnShowListener
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.res.ColorStateList
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Color
@@ -4670,6 +4671,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showSongActions(song: Song) {
         val hasLocalFile = hasValidLocalSongFile(song)
+        val isFavorite = store.isFavorite(song)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(28), dp(8), dp(28), dp(22))
@@ -4684,13 +4686,14 @@ class MainActivity : AppCompatActivity() {
         panel.addView(title, LinearLayout.LayoutParams(-1, -2))
         val actions = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; gravity = Gravity.CENTER }
         lateinit var dialog: AlertDialog
-        fun action(iconRes: Int, labelText: String, block: () -> Unit): View = LinearLayout(this).apply {
+        fun action(iconRes: Int, labelText: String, iconTint: Int? = null, block: () -> Unit): View = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             isFocusable = true
             isClickable = true
             addView(ImageView(this@MainActivity).apply {
                 setImageResource(iconRes)
+                iconTint?.let { imageTintList = ColorStateList.valueOf(it) }
                 setPadding(dp(18), dp(18), dp(18), dp(18))
                 background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
@@ -4708,7 +4711,11 @@ class MainActivity : AppCompatActivity() {
             moveQueuedSongToNext(song)
             toast("已置顶：${song.title}")
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        actions.addView(action(R.drawable.ott_ic_favorite, "收藏") {
+        actions.addView(action(
+            if (isFavorite) R.drawable.ott_ic_favorite_cancel else R.drawable.ott_ic_favorite,
+            if (isFavorite) "取消收藏" else "收藏",
+            if (isFavorite) Color.rgb(233, 30, 99) else null,
+        ) {
             val added = store.toggleFavorite(song)
             saveState()
             toast(if (added) "已收藏" else "已取消收藏")
@@ -6772,20 +6779,8 @@ class MainActivity : AppCompatActivity() {
         val requestVersion = ++browseRequestVersion
         val pageSize = MuseDatabase.PAGE_SIZE
         io.execute {
-            val localSongs = LinkedHashMap<String, Song>()
-            val downloadedFiles = downloadedSongDirectory().listFiles().orEmpty()
-            downloadedFiles.filter {
-                it.isFile && !it.name.endsWith(".download") && it.length() < SongOkDownloadManager.MIN_VALID_FILE_SIZE
-            }.forEach { invalid ->
-                cleanupSidecars(invalid)
-                invalid.delete()
-            }
-            val downloadedFilenames = downloadedFiles
-                .filter { it.isFile && it.exists() && it.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE }
-                .map { it.name }
-            val databaseSongs = library.muse.songsByFilenames(downloadedFilenames)
+            val localSongs = localSongInventory()
             downloads.asSequence().map { it.song }
-                .plus(databaseSongs.asSequence())
                 .plus(library.allSongs().asSequence())
                 .forEach { song ->
                 if (song.hasLocalFile() || isDownloaded(song)) {
@@ -6967,8 +6962,42 @@ class MainActivity : AppCompatActivity() {
     private fun downloadedSongDirectory(): File =
         File(MuseDatabase.VIDEO_ROOT, MuseDatabase.CLOUD_SONG_DIR)
 
-    private fun countDownloadedFiles(): Int = downloadedSongDirectory().listFiles().orEmpty().count {
-        it.isFile && !it.name.endsWith(".download") && it.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE
+    private fun countDownloadedFiles(): Int = localSongInventory().size
+
+    private fun localSongInventory(): LinkedHashMap<String, Song> {
+        val result = LinkedHashMap<String, Song>()
+        library.muse.localPathSongs().forEach { song ->
+            val resolved = File(MuseDatabase.resolveSongFilePath(song))
+            if (resolved.isFile && resolved.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE) {
+                song.path = resolved.absolutePath
+                result.putIfAbsent(stableId(song), song)
+            }
+        }
+
+        val downloadedFiles = downloadedSongDirectory().listFiles().orEmpty()
+        downloadedFiles.filter {
+            it.isFile && !it.name.endsWith(".download") && it.length() < SongOkDownloadManager.MIN_VALID_FILE_SIZE
+        }.forEach { invalid ->
+            cleanupSidecars(invalid)
+            invalid.delete()
+        }
+        val validFiles = downloadedFiles.filter {
+            it.isFile && it.exists() && !it.name.endsWith(".download") &&
+                it.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE
+        }
+        val filesByName = validFiles.associateBy { it.name }
+        val databaseSongs = library.muse.songsByFilenames(filesByName.keys)
+        databaseSongs.forEach { song ->
+            filesByName[song.filename]?.let { song.path = it.absolutePath }
+            result.putIfAbsent(stableId(song), song)
+        }
+        val matchedNames = databaseSongs.mapNotNullTo(HashSet()) { it.filename }
+        validFiles.filter { it.name !in matchedNames }.forEach { file ->
+            val song = Song.local(file.absolutePath, file.name)
+            song.filename = file.name
+            result.putIfAbsent(stableId(song), song)
+        }
+        return result
     }
 
     private fun clearDownloadedFilesOnBoot() {

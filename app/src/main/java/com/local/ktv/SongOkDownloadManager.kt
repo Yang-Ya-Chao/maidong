@@ -172,11 +172,19 @@ object SongOkDownloadManager {
                 var downloadedFile = task.file ?: partial
                 if (TsDecryptor.isEncrypted(downloadedFile)) {
                     val decrypted = File(downloadedFile.parentFile, "${downloadedFile.name}.decrypted")
-                    if (TsDecryptor.decryptFile(downloadedFile, decrypted)) {
-                        if (downloadedFile.delete() && decrypted.renameTo(downloadedFile)) {
-                            downloadedFile = task.file ?: partial
+                    val decryptedOk = TsDecryptor.decryptFile(downloadedFile, decrypted)
+                    val replaced = decryptedOk && downloadedFile.delete() && decrypted.renameTo(downloadedFile)
+                    if (!replaced) {
+                        downloadedFile.delete()
+                        decrypted.delete()
+                        if (attempt < MAX_RETRY_COUNT) {
+                            retry(song, cb, attempt + 1, "decrypt failed")
+                        } else {
+                            cb?.onDownloadFailed(song, "歌曲解密失败，异常文件已删除")
                         }
+                        return
                     }
+                    downloadedFile = task.file ?: partial
                 }
                 if (!downloadedFile.exists() || downloadedFile.length() < MIN_VALID_FILE_SIZE) {
                     val size = downloadedFile.takeIf(File::exists)?.length() ?: 0L

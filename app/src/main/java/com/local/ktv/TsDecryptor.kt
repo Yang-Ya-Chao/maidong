@@ -49,7 +49,7 @@ object TsDecryptor {
                 }
             }
             true
-        } catch (error: Exception) {
+        } catch (error: Throwable) {
             Log.e(TAG, "TS decrypt failed: ${inputFile.absolutePath}", error)
             outputFile.delete()
             false
