@@ -1,6 +1,12 @@
-# 麦动 KTV
+<p align="center">
+  <img src="app/src/main/res/drawable-nodpi/ktv_logo.png" width="140" alt="麦动 KTV Logo">
+</p>
 
-麦动 KTV 是面向 Android TV 和横屏点歌设备的本地 KTV 应用，围绕遥控器操作、歌曲检索、点播队列、下载管理和稳定播放提供完整体验。
+<h1 align="center">麦动 KTV</h1>
+
+<p align="center">面向 Android TV 和横屏点歌设备的本地 KTV 应用</p>
+
+<p align="center">遥控器操作 · 歌曲检索 · 点播队列 · 下载管理 · 稳定播放</p>
 
 ## 核心功能
 

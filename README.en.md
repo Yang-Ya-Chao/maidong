@@ -1,6 +1,12 @@
-# Maidong KTV
+<p align="center">
+  <img src="app/src/main/res/drawable-nodpi/ktv_logo.png" width="140" alt="Maidong KTV Logo">
+</p>
 
-Maidong KTV is a local karaoke application designed for Android TV and landscape song-selection devices. It provides a complete experience for remote-control navigation, song discovery, queue management, downloads, and stable playback.
+<h1 align="center">Maidong KTV</h1>
+
+<p align="center">A local karaoke application for Android TV and landscape song-selection devices</p>
+
+<p align="center">Remote Control · Song Discovery · Request Queue · Download Management · Stable Playback</p>
 
 ## Core Features
 
