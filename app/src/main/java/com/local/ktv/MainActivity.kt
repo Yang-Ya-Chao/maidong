@@ -937,7 +937,7 @@ class MainActivity : AppCompatActivity() {
         }), LinearLayout.LayoutParams(0, dp(50), 1f))
         controls.addView(
             button(
-                if (originalVocal) "原唱" else "伴唱",
+                vocalActionText(),
                 View.OnClickListener { v: View? -> toggleOriginalVocal() }),
             LinearLayout.LayoutParams(0, dp(50), 1f)
         )
@@ -1728,11 +1728,13 @@ class MainActivity : AppCompatActivity() {
                 // 音调控制
                 addSettingsTitle(content, "音调控制")
                 addSettingsItem(content, "音调 -", "降调", View.OnClickListener { v: View? ->
-                    tone = clamp(tone - 1, -12, 12)
+                    tone = clamp(tone - 1, -5, 5)
+                    player?.setTone(tone)
                     saveState()
                 })
                 addSettingsItem(content, "音调 +", "升调", View.OnClickListener { v: View? ->
-                    tone = clamp(tone + 1, -12, 12)
+                    tone = clamp(tone + 1, -5, 5)
+                    player?.setTone(tone)
                     saveState()
                 })
             }
@@ -2476,15 +2478,17 @@ class MainActivity : AppCompatActivity() {
             .setOnClickListener(View.OnClickListener { v: View? -> dialog.dismiss() })
         root.findViewById<View?>(R.id.btn_tone_down)
             .setOnClickListener(View.OnClickListener { v: View? ->
-                tone = max(-12, tone - 1)
+                tone = max(-5, tone - 1)
                 toneValue.setText(tone.toString())
+                player?.setTone(tone)
                 applyPlaybackMode()
                 saveState()
             })
         root.findViewById<View?>(R.id.btn_tone_up)
             .setOnClickListener(View.OnClickListener { v: View? ->
-                tone = min(12, tone + 1)
+                tone = min(5, tone + 1)
                 toneValue.setText(tone.toString())
+                player?.setTone(tone)
                 applyPlaybackMode()
                 saveState()
             })
@@ -4980,6 +4984,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun applyPlaybackMode() {
         val videoPlayer = player ?: return
+        videoPlayer.setTone(tone)
         val external = prepareExternalVocal(
             currentSong,
             player?.currentPosition ?: 0
@@ -6021,10 +6026,15 @@ class MainActivity : AppCompatActivity() {
         btnTopPause = findViewById<TextView?>(R.id.btn_top_pause)
         btnTopReplay = findViewById<TextView?>(R.id.btn_top_replay)
         btnTopTone = findViewById<TextView?>(R.id.btn_top_tone)
+        btnTopVocal?.text = vocalActionText()
+        btnTopPause?.text = if (playWhenPrepared) "暂停" else "播放"
         setTopControlIcon(textTopOrderLabel, R.drawable.ott_ic_ctrl_orderlist)
-        setTopControlIcon(btnTopVocal, R.drawable.ott_ic_ctrl_music_accomp)
+        setTopControlIcon(btnTopVocal, vocalActionIcon())
         setTopControlIcon(btnTopNext, R.drawable.ott_ic_ctrl_switch_song)
-        setTopControlIcon(btnTopPause, R.drawable.ott_ic_ctrl_pause)
+        setTopControlIcon(
+            btnTopPause,
+            if (playWhenPrepared) R.drawable.ott_ic_ctrl_pause else R.drawable.ott_ic_ctrl_play,
+        )
         setTopControlIcon(btnTopReplay, R.drawable.ott_ic_ctrl_replay)
         setTopControlIcon(btnTopTone, R.drawable.ott_ic_ctrl_volume)
         btnBottomGuess = findViewById<TextView?>(R.id.btn_bottom_guess)
@@ -9117,7 +9127,7 @@ class MainActivity : AppCompatActivity() {
         vocalChannelMode = store.vocalChannelMode
         musicVolume = store.musicVolume
         micVolume = store.micVolume
-        tone = store.tone
+        tone = store.tone.coerceIn(-5, 5)
         atmosphere = store.atmosphere
         singMode = store.singMode
         recordEnabled = store.recordEnabled

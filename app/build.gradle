@@ -13,6 +13,10 @@ android {
         targetSdk 25
         versionCode 3
         versionName "1.2.0"
+        ndk {
+            // Package each ABI's complete IJK set; never mix individual SOs across the two sets.
+            abiFilters "armeabi-v7a", "arm64-v8a"
+        }
         def manifestUrl = project.findProperty("GITEE_DATABASE_MANIFEST_URL") ?: ""
         buildConfigField "String", "GITEE_DATABASE_MANIFEST_URL", "\"${manifestUrl}\""
         def giteeToken = project.findProperty("GITEE_DATABASE_TOKEN") ?: ""

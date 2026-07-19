@@ -55,6 +55,7 @@ class KtvVideoView @JvmOverloads constructor(
     fun seekTo(positionMs: Int) = engine?.seekTo(positionMs) ?: Unit
     fun stopPlayback() = engine?.stop() ?: Unit
     fun setPlaybackVolume(left: Float, right: Float) = engine?.setVolume(left, right) ?: Unit
+    fun setTone(step: Int) = engine?.setTone(step) ?: Unit
     fun selectAudioTrack(original: Boolean): Boolean = engine?.selectAudioTrack(original) == true
     fun selectAudioChannel(channel: Int, volume: Float) = engine?.selectAudioChannel(channel, volume) ?: Unit
     val isPlaying: Boolean get() = engine?.isPlaying == true
@@ -102,6 +103,7 @@ private class KtvSurfaceView(context: Context) : SurfaceView(context) {
 class KtvPlaybackEngine(context: Context) {
     private companion object {
         const val TAG = "KtvPlaybackEngine"
+        const val FFP_PROP_FLOAT_PLAYBACK_PITCH = 10008
     }
 
     private var ijkPlayer: IjkMediaPlayer? = null
@@ -113,6 +115,7 @@ class KtvPlaybackEngine(context: Context) {
     private var errorListener: MediaPlayer.OnErrorListener? = null
     private var videoWidth = 0
     private var videoHeight = 0
+    private var toneStep = 0
 
     val isPlaying: Boolean get() = runCatching { ijkPlayer?.isPlaying == true }.getOrDefault(false)
     val currentPosition: Int get() = runCatching {
@@ -236,6 +239,26 @@ class KtvPlaybackEngine(context: Context) {
         runCatching { ijkPlayer?.setVolume(safeLeft, safeRight) }
     }
 
+    /** Matches the original 32-bit backend: -5..5 steps, 8% per step. */
+    fun setTone(step: Int) {
+        toneStep = step.coerceIn(-5, 5)
+        ijkPlayer?.let(::applyTone)
+    }
+
+    private fun applyTone(player: IjkMediaPlayer) {
+        val pitch = 1.0f + toneStep * 0.08f
+        runCatching {
+            val method = IjkMediaPlayer::class.java.getDeclaredMethod(
+                "_setPropertyFloat",
+                Int::class.javaPrimitiveType,
+                Float::class.javaPrimitiveType,
+            )
+            method.isAccessible = true
+            method.invoke(player, FFP_PROP_FLOAT_PLAYBACK_PITCH, pitch)
+            Log.i(TAG, "tone step=$toneStep pitch=$pitch")
+        }.onFailure { Log.e(TAG, "Cannot apply tone step=$toneStep", it) }
+    }
+
     fun selectAudioTrack(original: Boolean): Boolean = runCatching {
         val ijk = ijkPlayer
         if (ijk != null) {
@@ -243,7 +266,11 @@ class KtvPlaybackEngine(context: Context) {
                 ijk.trackInfo[it].trackType == ITrackInfo.MEDIA_TRACK_TYPE_AUDIO
             }
             if (audioTracks.size < 2) return@runCatching false
-            ijk.selectTrack(if (original) audioTracks[1] else audioTracks[0])
+            val targetTrack = if (original) audioTracks[1] else audioTracks[0]
+            val selectedTrack = ijk.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO)
+            if (selectedTrack != targetTrack) {
+                ijk.selectTrack(targetTrack)
+            }
             return@runCatching true
         }
         false
@@ -256,7 +283,8 @@ class KtvPlaybackEngine(context: Context) {
             runCatching {
                 ijk.setVolume(safeVolume, safeVolume)
                 ijk.seletcAudioChannel(channel)
-            }
+                Log.i(TAG, "audio channel=$channel volume=$safeVolume")
+            }.onFailure { Log.e(TAG, "Cannot select audio channel=$channel", it) }
             return
         }
         when (channel) {
@@ -292,8 +320,13 @@ class KtvPlaybackEngine(context: Context) {
     private fun configure(player: IjkMediaPlayer) {
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "start-on-prepared", 0L)
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_CODEC, "skip_loop_filter", 48L)
-        player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 2L)
+        // The switch path seeks the newly opened audio stream back to the
+        // rendered position, so audio can remain the A/V master without making
+        // the MV chase a future packet after a track change.
+        player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "sync-type", 0L)
+        player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "framedrop", 0L)
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "opensles", 0L)
+        player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "soundtouch", 1L)
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "overlay-format", IjkMediaPlayer.SDL_FCC_RV16.toLong())
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "packet-buffering", 1L)
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "max-buffer-size", 6_291_456L)
@@ -308,6 +341,7 @@ class KtvPlaybackEngine(context: Context) {
         player.setOption(IjkMediaPlayer.OPT_CATEGORY_PLAYER, "mediacodec-handle-resolution-change", 0L)
         player.setAudioStreamType(AudioManager.STREAM_MUSIC)
         player.setScreenOnWhilePlaying(true)
+        applyTone(player)
         player.setOnPreparedListener { preparedPlayer: IMediaPlayer ->
             prepared = true
             videoWidth = preparedPlayer.videoWidth
