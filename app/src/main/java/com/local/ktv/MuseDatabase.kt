@@ -2,6 +2,7 @@ package com.local.ktv
 
 import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
+import android.net.Uri
 import android.util.Log
 import java.io.File
 import java.util.Locale
@@ -10,6 +11,7 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
     private var sourceFile: File? = initialSourceFile
     private var database: SQLiteDatabase? = null
     private var available = false
+    private var cdnPath = DEFAULT_CDN_PATH
 
     fun open(): Boolean {
         if (database != null) return isAvailable()
@@ -23,6 +25,7 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
             )
             database?.isOpen == true
         }.onFailure { Log.e(TAG, "打开曲库数据库失败: ${file.absolutePath}", it) }.getOrDefault(false)
+        if (available) cdnPath = readCdnPath()
         return available
     }
 
@@ -30,6 +33,7 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
         runCatching { database?.close() }
         database = null
         available = false
+        cdnPath = DEFAULT_CDN_PATH
     }
 
     fun isAvailable(): Boolean = available && database?.isOpen == true
@@ -89,6 +93,45 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
         )
     }
 
+    fun searchSongsBySingerKeyword(keyword: String?, offset: Int, limit: Int): MutableList<Song> {
+        val query = keyword?.trim().orEmpty()
+        if (query.isEmpty()) return mutableListOf()
+        val singerArgs = mutableListOf<String>()
+        val singerCondition = textKeywordCondition(
+            query,
+            "sg.",
+            listOf("name", "name_cap", "name_full", "name_trim"),
+            singerArgs,
+        )
+        return songs(
+            "$SONG_SELECT WHERE s.deleted_at IS NULL AND (" +
+                "s.singer_names LIKE ? OR EXISTS (SELECT 1 FROM song_singer_relations ssr " +
+                "INNER JOIN singers sg ON sg.id=ssr.singer_id " +
+                "WHERE ssr.song_id=s.id AND sg.deleted_at IS NULL AND $singerCondition)) " +
+                "$RECOMMEND_ORDER LIMIT ? OFFSET ?",
+            (listOf("%$query%") + singerArgs + limit.toString() + offset.toString()).toTypedArray(),
+        )
+    }
+
+    fun searchSongsBySingerKeywordCount(keyword: String?): Int {
+        val query = keyword?.trim().orEmpty()
+        if (query.isEmpty()) return 0
+        val singerArgs = mutableListOf<String>()
+        val singerCondition = textKeywordCondition(
+            query,
+            "sg.",
+            listOf("name", "name_cap", "name_full", "name_trim"),
+            singerArgs,
+        )
+        return count(
+            "SELECT COUNT(*) FROM songs s WHERE s.deleted_at IS NULL AND (" +
+                "s.singer_names LIKE ? OR EXISTS (SELECT 1 FROM song_singer_relations ssr " +
+                "INNER JOIN singers sg ON sg.id=ssr.singer_id " +
+                "WHERE ssr.song_id=s.id AND sg.deleted_at IS NULL AND $singerCondition))",
+            (listOf("%$query%") + singerArgs).toTypedArray(),
+        )
+    }
+
     fun searchSingers(
         keyword: String?,
         area: String?,
@@ -119,7 +162,7 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
         ) { cursor ->
             arrayOf(
                 cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getString(3),
-                cursor.getInt(4).toString(), cursor.getString(5),
+                cursor.getInt(4).toString(), resolveSingerImageUrl(cursor.getString(5)),
             )
         }
     }
@@ -204,7 +247,7 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
         return rows(sql.toString(), args.toTypedArray()) { cursor ->
             arrayOf(
                 cursor.getString(0), cursor.getString(1), cursor.getString(2), cursor.getString(3),
-                cursor.getInt(4).toString(), cursor.getString(5),
+                cursor.getInt(4).toString(), resolveSingerImageUrl(cursor.getString(5)),
             )
         }
     }
@@ -506,8 +549,27 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
         }
     }
 
+    private fun readCdnPath(): String {
+        val db = database ?: return DEFAULT_CDN_PATH
+        return runCatching {
+            db.rawQuery(
+                "SELECT cdn_path FROM global_confs WHERE cdn_path IS NOT NULL AND TRIM(cdn_path) != '' LIMIT 1",
+                null,
+            ).use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else DEFAULT_CDN_PATH
+            }
+        }.getOrDefault(DEFAULT_CDN_PATH).trimEnd('/') + "/"
+    }
+
+    private fun resolveSingerImageUrl(image: String?): String? {
+        val value = image?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/")) return value
+        return cdnPath + Uri.encode(value, "/")
+    }
+
     companion object {
         private const val TAG = "MuseDatabase"
+        private const val DEFAULT_CDN_PATH = "https://pub.mcdn.cherryonline.cn/"
         private const val DEFAULT_DB_PATH = "${AppPaths.ROOT_PATH}/database/muse.db"
         const val PAGE_SIZE = 10
         const val VIDEO_ROOT = AppPaths.VIDEO_PATH

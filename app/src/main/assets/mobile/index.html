@@ -45,9 +45,20 @@
 
       <section id="search" class="page">
         <div class="page-heading"><div><p>SONG LIBRARY</p><h2>想唱什么？</h2></div><span>海量本地曲库</span></div>
-        <form id="searchForm" class="search-box"><span class="search-icon"></span><input id="query" autocomplete="off" placeholder="搜索歌名、歌手或拼音"><button type="submit">搜索</button></form>
-        <div id="hot" class="hot-block"><div class="block-title"><h3>热门搜索</h3><span>大家都在唱</span></div><div class="chips"><button type="button"><b>01</b>周杰伦</button><button type="button"><b>02</b>邓紫棋</button><button type="button"><b>03</b>陈奕迅</button><button type="button"><b>04</b>Beyond</button><button type="button"><b>05</b>晴天</button></div></div>
-        <div id="results" class="list"></div><button id="more" class="more hidden">加载更多歌曲</button>
+        <div class="search-mode" role="group" aria-label="搜索方式">
+          <button type="button" data-search-mode="singer" class="active">歌手</button>
+          <button type="button" data-search-mode="song">歌曲</button>
+        </div>
+        <form id="searchForm" class="search-box"><span class="search-icon"></span><input id="query" autocomplete="off" placeholder="输入歌手名或拼音"><button type="submit">搜索</button></form>
+        <div id="searchResultBlock" class="search-result-block hidden">
+          <div class="block-title"><h3 id="resultTitle">歌手搜索结果</h3><span id="resultSummary"></span></div>
+          <div id="results" class="list"></div><button id="more" class="more hidden">加载更多歌曲</button>
+        </div>
+        <div id="hot" class="hot-block">
+          <div class="block-title"><h3>热歌排行</h3><span id="hotSummary">正在加载…</span></div>
+          <div id="hotList" class="list ranking-list"></div>
+          <div class="rank-pager"><button id="hotPrev" type="button">上一页</button><b id="hotPage">第 1 页</b><button id="hotNext" type="button">下一页</button></div>
+        </div>
       </section>
 
       <section id="queue" class="page">

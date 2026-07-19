@@ -45,7 +45,6 @@ class SingerGridAdapter(
     }
 
     private fun createSingerTile(singer: Array<String?>): View {
-        val type = singer.getOrNull(2).orEmpty()
         val name = singer.getOrNull(1).orEmpty()
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -56,7 +55,7 @@ class SingerGridAdapter(
 
             val avatar = ImageView(context).apply {
                 scaleType = ImageView.ScaleType.CENTER_CROP
-                setImageResource(defaultAvatar(type, name))
+                SingerAvatarLoader.load(this, singer.getOrNull(5), R.drawable.ic_singer_placeholder)
                 outlineProvider = object : ViewOutlineProvider() {
                     override fun getOutline(view: View, outline: Outline) {
                         outline.setOval(0, 0, view.width, view.height)
@@ -88,47 +87,9 @@ class SingerGridAdapter(
         }
     }
 
-    private fun defaultAvatar(type: String, name: String): Int {
-        val variant = (name.hashCode() and Int.MAX_VALUE) % 5
-        return when (type) {
-            "男" -> MALE_AVATARS[variant]
-            "女" -> FEMALE_AVATARS[variant]
-            "组合" -> BAND_AVATARS[variant]
-            else -> UNKNOWN_AVATARS[variant]
-        }
-    }
-
     private fun dp(value: Int): Int = (value * density + 0.5f).toInt()
 
     companion object {
         private const val COLUMN_COUNT = 4
-        private val MALE_AVATARS = intArrayOf(
-            R.drawable.default_avatar_singer_male_0,
-            R.drawable.default_avatar_singer_male_1,
-            R.drawable.default_avatar_singer_male_2,
-            R.drawable.default_avatar_singer_male_3,
-            R.drawable.default_avatar_singer_male_4,
-        )
-        private val FEMALE_AVATARS = intArrayOf(
-            R.drawable.default_avatar_singer_female_0,
-            R.drawable.default_avatar_singer_female_1,
-            R.drawable.default_avatar_singer_female_2,
-            R.drawable.default_avatar_singer_female_3,
-            R.drawable.default_avatar_singer_female_4,
-        )
-        private val BAND_AVATARS = intArrayOf(
-            R.drawable.default_avatar_singer_band_0,
-            R.drawable.default_avatar_singer_band_1,
-            R.drawable.default_avatar_singer_band_2,
-            R.drawable.default_avatar_singer_band_3,
-            R.drawable.default_avatar_singer_band_4,
-        )
-        private val UNKNOWN_AVATARS = intArrayOf(
-            R.drawable.default_avatar_singer_unknown_0,
-            R.drawable.default_avatar_singer_unknown_1,
-            R.drawable.default_avatar_singer_unknown_2,
-            R.drawable.default_avatar_singer_unknown_3,
-            R.drawable.default_avatar_singer_unknown_4,
-        )
     }
 }

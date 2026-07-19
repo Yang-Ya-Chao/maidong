@@ -184,6 +184,8 @@ class MainActivity : AppCompatActivity() {
     private var databaseLoadingOverlay: FrameLayout? = null
     private var databaseLoadingText: TextView? = null
     private var databaseLoadingProgress: ProgressBar? = null
+    private var databaseRetryButton: TextView? = null
+    @Volatile private var databaseBootstrapRunning = false
     private var player: KtvVideoView? = null
 
     /** 播放器控制层(叠加在 player 之上)  */
@@ -433,58 +435,76 @@ class MainActivity : AppCompatActivity() {
         }
         // Keep initialization on the loading state until the external catalog is ready.
         SongApiClient.init(this)  // 主线程初始化 JS Bridge
-        showDatabaseLoading(true, "正在初始化曲库...", null)
-        io.execute(Runnable {
-            val remoteVersion = DatabaseBootstrapper.fetchRemoteVersion()
-            val localVersion = DatabaseBootstrapper.getLocalDbVersion()
-            if (remoteVersion != null && remoteVersion != localVersion) {
-                library.muse.close()
-                MuseDatabase.defaultDbFile().delete()
-            }
-
-            var ok = library.muse.open()
-            var bootstrapError: Throwable? = null
-            if (!ok) {
-                val result = DatabaseBootstrapper.download { value ->
-                    val phase = when {
-                        value < 80 -> "正在下载曲库"
-                        value < 90 -> "正在合并文件"
-                        value < 100 -> "正在解压数据库"
-                        else -> "完成"
-                    }
-                    main.post { showDatabaseLoading(true, "$phase ${value}%", value) }
-                }
-                bootstrapError = result.exceptionOrNull()
-                ok = result.isSuccess && library.muse.open()
-            }
-            val count = if (ok) library.muse.songCount() else 0
-            if (ok) {
-                val pageSize = MuseDatabase.PAGE_SIZE
-                val songs = library.muse.hotSongs(0, pageSize * 2)
-                synchronized(browseCountCache) { browseCountCache["hot\u0001\u0001全部\u0001"] = count }
-                songs.chunked(pageSize).forEachIndexed { page, pageSongs ->
-                    val key = BrowseCacheKey("hot", "", "全部", "", page, pageSize)
-                    synchronized(browsePageCache) { browsePageCache[key] = BrowsePageResult(pageSongs, count) }
-                }
-            }
-            main.post(Runnable {
-                if (ok) {
-                    refreshLibrary(Runnable {
-                        showDatabaseLoading(false, "", null)
-                        showHomePage()
-                        if (currentSong == null && orderQueue!!.isEmpty()) startIdlePublicPlayback()
-                        if (catalogRefreshPending) refreshCurrentCatalogPage()
-                    })
-                } else {
-                    showDatabaseLoading(true, "曲库初始化失败：${bootstrapError?.message.orEmpty()}", null)
-                }
-            })
-        })
+        initializeDatabase()
         startRemoteServer()
         updateMobileQrOverlay()
         main.postDelayed(remoteNetworkMonitor, 5000)
         main.post(lyricTicker)
         main.postDelayed({ checkAppUpdate(false) }, 2500L)
+    }
+
+    private fun initializeDatabase() {
+        if (databaseBootstrapRunning) return
+        databaseBootstrapRunning = true
+        showDatabaseLoading(true, "正在初始化曲库...", null)
+        io.execute {
+            val remoteVersion = DatabaseBootstrapper.fetchRemoteVersion()
+            val localVersion = DatabaseBootstrapper.getLocalDbVersion()
+            val updateRequired = remoteVersion != null && remoteVersion != localVersion
+            var bootstrapError: Throwable? = null
+            var usedOldDatabase = false
+
+            var ok = if (updateRequired) false else library.muse.open()
+            if (!ok) {
+                library.muse.close()
+                val result = DatabaseBootstrapper.download(::showDatabaseDownloadProgress)
+                bootstrapError = result.exceptionOrNull()
+                ok = result.isSuccess && library.muse.open()
+                if (!ok) {
+                    // A failed online update must not make an existing local catalog unusable.
+                    usedOldDatabase = library.muse.open()
+                    ok = usedOldDatabase
+                }
+            }
+
+            val count = if (ok) library.muse.songCount() else 0
+            if (ok) warmRemoteBrowseCache(count)
+            main.post {
+                databaseBootstrapRunning = false
+                if (ok) {
+                    refreshLibrary {
+                        showDatabaseLoading(false, "", null)
+                        showHomePage()
+                        if (usedOldDatabase && bootstrapError != null) toast("曲库更新失败，已使用本地曲库")
+                        if (currentSong == null && orderQueue!!.isEmpty()) startIdlePublicPlayback()
+                        if (catalogRefreshPending) refreshCurrentCatalogPage()
+                    }
+                } else {
+                    val reason = bootstrapError?.message.orEmpty().ifBlank { "未找到可用曲库" }
+                    showDatabaseLoadingFailure("曲库初始化失败：$reason")
+                }
+            }
+        }
+    }
+
+    private fun showDatabaseDownloadProgress(value: Int) {
+        val phase = when {
+            value < 80 -> "正在下载并解压曲库"
+            value < 90 -> "正在完成解压"
+            value < 100 -> "正在校验数据库"
+            else -> "完成"
+        }
+        main.post { showDatabaseLoading(true, "$phase ${value}%", value) }
+    }
+
+    private fun warmRemoteBrowseCache(count: Int) {
+        val pageSize = MuseDatabase.PAGE_SIZE
+        val songs = library.muse.hotSongs(0, pageSize * 2)
+        synchronized(browseCountCache) { browseCountCache["hot\u0001\u0001全部\u0001"] = count }
+        songs.chunked(pageSize).forEachIndexed { page, pageSongs ->
+            val key = BrowseCacheKey("hot", "", "全部", "", page, pageSize)
+            synchronized(browsePageCache) { browsePageCache[key] = BrowsePageResult(pageSongs, count) }
+        }
     }
 
     override fun onResume() {
@@ -3206,6 +3226,7 @@ class MainActivity : AppCompatActivity() {
             when {
                 method == "GET" && path == "/api/v1/state" -> remoteOk(remoteStateJson())
                 method == "GET" && path == "/api/v1/songs" -> remoteOk(remoteSearchJson(query))
+                method == "GET" && path == "/api/v1/hot" -> remoteOk(remoteHotJson(query))
                 method == "GET" && path == "/api/v1/queue" -> remoteOk(remoteQueueJson())
                 method == "POST" && path == "/api/v1/queue" -> remoteOrder(JSONObject(body))
                 method == "POST" && path == "/api/v1/player/actions" -> remotePlayerAction(JSONObject(body))
@@ -3236,15 +3257,20 @@ class MainActivity : AppCompatActivity() {
 
     private fun remoteSearchJson(query: Map<String, String>): JSONObject {
         val keyword = query["q"].orEmpty().trim()
+        val type = query["type"].orEmpty().lowercase(Locale.ROOT).let { if (it == "song") "song" else "singer" }
         val page = (query["page"]?.toIntOrNull() ?: 1).coerceAtLeast(1)
         val pageSize = (query["pageSize"]?.toIntOrNull() ?: 20).coerceIn(1, 50)
         val offset = (page - 1) * pageSize
         val songs = if (library.muse.isAvailable() && keyword.isNotBlank()) {
-            library.muse.searchSongs(keyword, offset, pageSize + 1)
+            if (type == "singer") library.muse.searchSongsBySingerKeyword(keyword, offset, pageSize + 1)
+            else library.muse.searchSongs(keyword, offset, pageSize + 1)
         } else {
             library.allSongs().asSequence().filter { song ->
-                isVisibleSong(song) && (keyword.isBlank() ||
-                    (song.title + " " + song.singer + " " + song.pinyin).contains(keyword, true))
+                isVisibleSong(song) && keyword.isNotBlank() && if (type == "singer") {
+                    song.singer.orEmpty().contains(keyword, true)
+                } else {
+                    (song.title + " " + song.pinyin).contains(keyword, true)
+                }
             }.drop(offset).take(pageSize + 1).toMutableList()
         }
         val hasMore = songs.size > pageSize
@@ -3255,7 +3281,29 @@ class MainActivity : AppCompatActivity() {
             array.put(songJson(song))
         }
         while (remoteSongCache.size > 500) remoteSongCache.remove(remoteSongCache.keys.first())
-        return JSONObject().put("songs", array).put("page", page).put("pageSize", pageSize).put("hasMore", hasMore)
+        return JSONObject().put("songs", array).put("page", page).put("pageSize", pageSize)
+            .put("type", type).put("hasMore", hasMore)
+    }
+
+    private fun remoteHotJson(query: Map<String, String>): JSONObject {
+        val page = (query["page"]?.toIntOrNull() ?: 1).coerceAtLeast(1)
+        val pageSize = (query["pageSize"]?.toIntOrNull() ?: 10).coerceIn(1, 30)
+        val offset = (page - 1) * pageSize
+        val songs = if (library.muse.isAvailable()) {
+            library.muse.hotSongs(offset, pageSize + 1)
+        } else {
+            library.allSongs().asSequence().filter(::isVisibleSong)
+                .sortedByDescending { it.playCount }.drop(offset).take(pageSize + 1).toMutableList()
+        }
+        val hasMore = songs.size > pageSize
+        val array = JSONArray()
+        songs.take(pageSize).forEach { song ->
+            remoteSongCache[stableId(song)] = song
+            array.put(songJson(song))
+        }
+        while (remoteSongCache.size > 500) remoteSongCache.remove(remoteSongCache.keys.first())
+        return JSONObject().put("songs", array).put("page", page).put("pageSize", pageSize)
+            .put("hasPrevious", page > 1).put("hasMore", hasMore)
     }
 
     private fun remoteQueueJson(): JSONObject {
@@ -6252,7 +6300,9 @@ class MainActivity : AppCompatActivity() {
         clearHomeTopFocusNavigation()
         topBar?.apply {
             visibility = View.VISIBLE
-            translationY = dp(22).toFloat()
+            // 紧凑横屏的内容区顶部内边距只有 10dp；继续下移 22dp 会让顶部
+            // 控制按钮压到面包屑/返回栏上。窄屏只做轻微下移，保留两栏间距。
+            translationY = dp(if (compactUi) 8 else 22).toFloat()
             setBackgroundColor(Color.TRANSPARENT)
         }
         textLogo?.visibility = View.GONE
@@ -7813,15 +7863,7 @@ class MainActivity : AppCompatActivity() {
         io.execute {
             library.muse.close()
             MuseDatabase.defaultDbFile().delete()
-            val result = DatabaseBootstrapper.download { value ->
-                val phase = when {
-                    value < 80 -> "正在下载曲库"
-                    value < 90 -> "正在合并文件"
-                    value < 100 -> "正在解压数据库"
-                    else -> "完成"
-                }
-                main.post { showDatabaseLoading(true, "$phase ${value}%", value) }
-            }
+            val result = DatabaseBootstrapper.download(::showDatabaseDownloadProgress)
             val opened = result.isSuccess && library.muse.open()
             main.post {
                 if (opened) {
@@ -7829,7 +7871,7 @@ class MainActivity : AppCompatActivity() {
                     toast("数据库重置完成")
                     showSettingsSection(1, false)
                 } else {
-                    showDatabaseLoading(true, "数据库重置失败：${result.exceptionOrNull()?.message.orEmpty()}", null)
+                    showDatabaseLoadingFailure("数据库重置失败：${result.exceptionOrNull()?.message.orEmpty()}")
                 }
             }
         }
@@ -7870,6 +7912,23 @@ class MainActivity : AppCompatActivity() {
                     progressDrawable = getDrawable(R.drawable.bg_download_progress)
                 }
                 addView(databaseLoadingProgress, LinearLayout.LayoutParams(dp(620), dp(10)))
+                databaseRetryButton = TextView(this@MainActivity).apply {
+                    text = "重试"
+                    textSize = 19f
+                    gravity = Gravity.CENTER
+                    setTextColor(Color.rgb(45, 20, 65))
+                    isClickable = true
+                    isFocusable = true
+                    visibility = View.GONE
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(12).toFloat()
+                        setColor(Color.rgb(255, 204, 92))
+                    }
+                }
+                addView(databaseRetryButton, LinearLayout.LayoutParams(dp(180), dp(54)).apply {
+                    gravity = Gravity.CENTER_HORIZONTAL
+                    topMargin = dp(24)
+                })
             }
             overlay.addView(center, FrameLayout.LayoutParams(-2, -2, Gravity.CENTER))
             root.addView(overlay, FrameLayout.LayoutParams(-1, -1))
@@ -7881,7 +7940,24 @@ class MainActivity : AppCompatActivity() {
             visibility = if (progressValue == null) View.INVISIBLE else View.VISIBLE
             progress = progressValue ?: 0
         }
+        databaseRetryButton?.apply {
+            visibility = View.GONE
+            isEnabled = true
+            setOnClickListener(null)
+        }
         databaseLoadingOverlay?.bringToFront()
+    }
+
+    private fun showDatabaseLoadingFailure(message: String) {
+        showDatabaseLoading(true, "$message\n请检查网络或空间后重试", null)
+        databaseRetryButton?.apply {
+            visibility = View.VISIBLE
+            setOnClickListener {
+                isEnabled = false
+                initializeDatabase()
+            }
+            requestFocus()
+        }
     }
 
     // ===== 设置子功能 (新Tab版) =====
