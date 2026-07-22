@@ -69,8 +69,8 @@ class Song {
 
     fun displayTitle(): String = "${title.orEmpty()}  -  ${singer.orEmpty()}"
 
-    fun hasLocalFile(): Boolean = path?.takeIf(String::isNotEmpty)?.let(::File)?.let {
-        it.exists() && it.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE
+    fun hasLocalFile(): Boolean = path?.takeIf(String::isNotEmpty)?.let(::File)?.let { file ->
+        SongFileValidator.inspect(file, SongFileValidator.requiresTransportStream(file)).valid
     } == true
 
     fun getDownloadUrl(): String {

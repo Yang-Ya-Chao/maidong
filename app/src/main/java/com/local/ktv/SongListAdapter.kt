@@ -244,7 +244,18 @@ class SongListAdapter(
 
     private fun configureSongCard(card: View, song: Song, songIndex: Int) {
         card.id = cardId(songIndex)
-        card.contentDescription = FOCUS_PREFIX + songKey(song)
+        val state = stateFor(song)
+        val stateText = when {
+            state.current -> "正在播放"
+            state.queued -> "已点"
+            state.downloading -> "正在下载百分之${state.progress}"
+            state.local -> "已下载"
+            else -> "未下载"
+        }
+        card.setAccessibleFocus(
+            FOCUS_PREFIX + songKey(song),
+            "歌曲，${song.title.orEmpty()}，歌手，${song.singer.orEmpty()}，$stateText，双击点歌，长按查看更多",
+        )
         (card as? ViewGroup)?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         installPressAnimation(card)
         card.setOnClickListener { callbacks.onPrimary(song) }

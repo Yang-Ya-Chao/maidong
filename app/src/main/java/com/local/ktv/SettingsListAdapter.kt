@@ -71,7 +71,10 @@ class SettingsListAdapter(
                     nextFocusDownId = actionIds[(position + 1).coerceAtMost(entries.lastIndex)]
                     isChecked = entry.checked
                     showText = false
-                    contentDescription = "focus:settings:${entry.title}"
+                    setAccessibleFocus(
+                        "focus:settings:${entry.title}",
+                        "${entry.title}${entry.subtitle.takeIf(String::isNotEmpty)?.let { "，$it" }.orEmpty()}，${if (entry.checked) "已开启" else "已关闭"}",
+                    )
                     isFocusable = true
                     isFocusableInTouchMode = false
                     setOnClickListener {
@@ -89,7 +92,10 @@ class SettingsListAdapter(
                         actionIds[(position - 1).coerceAtLeast(0)]
                     }
                     nextFocusDownId = actionIds[(position + 1).coerceAtMost(entries.lastIndex)]
-                    contentDescription = "focus:settings:${entry.title}"
+                    setAccessibleFocus(
+                        "focus:settings:${entry.title}",
+                        "${entry.title}${entry.subtitle.takeIf(String::isNotEmpty)?.let { "，$it" }.orEmpty()}，${entry.actionText}",
+                    )
                     gravity = Gravity.CENTER
                     setBackgroundResource(R.drawable.bg_btn_glass)
                     isFocusable = true

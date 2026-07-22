@@ -14,6 +14,7 @@ import java.net.URL
 
 /** Gitee Release based in-app updater. */
 object AppUpdateManager {
+    const val UNKNOWN_SOURCES_REQUEST_CODE = 0x4B54
     private const val LATEST_RELEASE_API =
         "https://gitee.com/api/v5/repos/yangyachao-X/maidong-ktv/releases/latest"
     private const val PREFS = "app_updater"
@@ -117,8 +118,9 @@ object AppUpdateManager {
         ) {
             activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE)
                 .edit().putString(PENDING_APK, apk.absolutePath).apply()
-            activity.startActivity(
+            activity.startActivityForResult(
                 Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}")),
+                UNKNOWN_SOURCES_REQUEST_CODE,
             )
             return
         }
@@ -127,7 +129,8 @@ object AppUpdateManager {
         activity.startActivity(
             Intent(Intent.ACTION_VIEW).apply {
                 setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+                clipData = android.content.ClipData.newRawUri("APK", uri)
             },
         )
     }

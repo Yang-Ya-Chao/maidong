@@ -306,12 +306,15 @@ class MainActivity : AppCompatActivity() {
     private var playbackPreparing = false
     private var playWhenPrepared = true
     private var playbackGeneration = 0L
-    private var pendingPlayAfterDownloadId: String? = null
+    private val pendingQueueSongIds = LinkedHashSet<String>()
     private var suppressCompletionUntil = 0L
-    private var publicPlaybackActive = false
-    private var publicPlaybackIndex = 0
-    private val publicFullscreenRunnable = Runnable {
-        if (pubPlayEnabled && publicPlaybackActive && !isFullScreen) showFullScreenPlayer()
+    private val autoFullscreenRunnable = Runnable {
+        val eligible = autoFullscreenSeconds > 0 && currentSong != null && playWhenPrepared && !isFullScreen
+        Log.d(TAG, "autoFullscreen fired eligible=$eligible seconds=$autoFullscreenSeconds " +
+            "song=${currentSong?.let(::stableId)} playing=$playWhenPrepared full=$isFullScreen")
+        if (eligible) {
+            showFullScreenPlayer()
+        }
     }
     private var homeBannerIndex = 0
     private val homeBanners = intArrayOf(
@@ -340,9 +343,6 @@ class MainActivity : AppCompatActivity() {
     private var scoreEnabled = true
     private var marqueeEnabled = true
     private var marqueeText: String? = "欢迎使用麦动"
-    private var pubPlayEnabled = false
-    private var pubPlayInterval = 3
-    private var pubPlayMode = 2
     private var playWhileDownloading = false
     private var clearDownloadsOnBoot = false
     private var autoFullscreenSeconds = 0
@@ -351,11 +351,8 @@ class MainActivity : AppCompatActivity() {
     private var reserveStorageGb = 1.0
     private var floatingButtonEnabled = true
     private var songTitleSubtitleEnabled = true
-    private var pubSongOriginal = true
     private var orderedSongOriginal = false
-    private var pubVolumeMode = 0
     private var orderedVolumeMode = 0
-    private var pubVocalMode = 0
     private var orderedVocalMode = 0
     private var voiceEngineEnabled = true
     private var voiceEngineVolume = 70
@@ -476,7 +473,6 @@ class MainActivity : AppCompatActivity() {
                         showDatabaseLoading(false, "", null)
                         showHomePage()
                         if (usedOldDatabase && bootstrapError != null) toast("曲库更新失败，已使用本地曲库")
-                        if (currentSong == null && orderQueue!!.isEmpty()) startIdlePublicPlayback()
                         if (catalogRefreshPending) refreshCurrentCatalogPage()
                     }
                 } else {
@@ -509,7 +505,16 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        AppUpdateManager.resumePendingInstall(this)
+        // Some TV firmwares report the unknown-source permission a little after Settings closes.
+        main.postDelayed({ AppUpdateManager.resumePendingInstall(this) }, 350L)
+    }
+
+    @Deprecated("Deprecated in Android")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (requestCode == AppUpdateManager.UNKNOWN_SOURCES_REQUEST_CODE) {
+            main.postDelayed({ AppUpdateManager.resumePendingInstall(this) }, 350L)
+        }
     }
 
     override fun onDestroy() {
@@ -517,7 +522,7 @@ class MainActivity : AppCompatActivity() {
         io.shutdownNow()
         main.removeCallbacks(lyricTicker)
         main.removeCallbacks(homeBannerRunnable)
-        main.removeCallbacks(publicFullscreenRunnable)
+        main.removeCallbacks(autoFullscreenRunnable)
         main.removeCallbacks(remoteNetworkMonitor)
         stopRecording(false)
         releaseVocalPlayer()
@@ -697,7 +702,6 @@ class MainActivity : AppCompatActivity() {
         addNav("⬇️ 下载", View.OnClickListener { v: View? -> showDownloads() })
         addNav("💾 U盘", View.OnClickListener { v: View? -> showUdisk() })
         addNav("🎬 影片", View.OnClickListener { v: View? -> showLocalMovies() })
-        addNav("📢 公播", View.OnClickListener { v: View? -> showPubPlaySettings() })
         addNav("🎉 派对", View.OnClickListener { v: View? -> showDisco() })
         addNav("📡 网络", View.OnClickListener { v: View? -> showNetworkDialog() })
         addNav("🖥️ 屏幕", View.OnClickListener { v: View? -> showScreenDialog() })
@@ -847,11 +851,6 @@ class MainActivity : AppCompatActivity() {
             "手机点歌",
             remoteUrl(),
             View.OnClickListener { v: View? -> showMobileRemoteDialog() })
-        addTile(
-            grid,
-            "公播管理",
-            if (pubPlayEnabled) "空闲自动播放" else "公播已关闭",
-            View.OnClickListener { v: View? -> showPubPlaySettings() })
         addTile(
             grid,
             "跑马灯",
@@ -1625,7 +1624,7 @@ class MainActivity : AppCompatActivity() {
 
         val menuItems = arrayOf<String?>(
             "🎤  演唱模式", "🔊  音频控制", "🌐  声道设置", "🎚  音调控制",
-            "📺  画面设置", "🎵  公播设置", "📃  跑马灯", "📶  网络设置", "ℹ  关于"
+            "📺  画面设置", "📃  跑马灯", "📶  网络设置", "ℹ  关于"
         )
         val adapter: ArrayAdapter<String?> =
             object : ArrayAdapter<String?>(this, R.layout.settings_menu_item, menuItems) {
@@ -1748,14 +1747,6 @@ class MainActivity : AppCompatActivity() {
             }
 
             5 -> {
-                // 公播设置
-                addSettingsTitle(content, "公播设置")
-                addSettingsItem(content, "公播状态", "关", null)
-                addSettingsItem(content, "公播歌曲", "无", null)
-                addSettingsItem(content, "公播音量", "70%", null)
-            }
-
-            6 -> {
                 // 跑马灯
                 addSettingsTitle(content, "跑马灯")
                 addSettingsItem(content, "跑马灯状态", "关", null)
@@ -1763,7 +1754,7 @@ class MainActivity : AppCompatActivity() {
                 addSettingsItem(content, "滚动速度", "正常", null)
             }
 
-            7 -> {
+            6 -> {
                 // 网络设置
                 addSettingsTitle(content, "网络设置")
                 addSettingsItem(content, "当前网络", "WIFI 已连接", null)
@@ -1771,7 +1762,7 @@ class MainActivity : AppCompatActivity() {
                 addSettingsItem(content, "CDN 备地址", "pub.mcdn.cherryonline.cn", null)
             }
 
-            8 -> {
+            7 -> {
                 // 关于
                 addSettingsTitle(content, "关于")
                 addSettingsItem(content, "应用名称", "麦动", null)
@@ -1921,11 +1912,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun toggleOriginalVocal() {
+        setOriginalVocalMode(!originalVocal)
+    }
+
+    /** 按按钮表达的目标模式切换，提示框和实际声道使用同一个目标值。 */
+    private fun setOriginalVocalMode(targetOriginal: Boolean) {
         val shouldPlay = playWhenPrepared
-        originalVocal = !originalVocal
+        originalVocal = targetOriginal
         applyPlaybackMode()
         saveState()
-        showPlaybackModeNotice(if (originalVocal) "原唱" else "伴唱")
+        showPlaybackModeNotice(if (targetOriginal) "原唱" else "伴唱")
         // 同步状态到控制层
         if (playerController != null) {
             playerController!!.setVocalMode(originalVocal)
@@ -1937,7 +1933,7 @@ class MainActivity : AppCompatActivity() {
         updateBottomBar(currentSong, shouldPlay)
     }
 
-    /** The control label describes the action, while the transient notice describes the active mode. */
+    /** 控制按钮显示下一次动作；播放框提示显示本次切换后实际生效的模式。 */
     private fun vocalActionText(): String = if (originalVocal) "伴唱" else "原唱"
 
     private fun vocalActionIcon(): Int = if (originalVocal) {
@@ -1975,13 +1971,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             override fun onVocalSwitch(original: Boolean) {
-                val shouldPlay = playWhenPrepared
-                originalVocal = original
-                applyPlaybackMode()
-                saveState()
-                showPlaybackModeNotice(if (originalVocal) "原唱" else "伴唱")
-                playerController!!.setVocalMode(originalVocal)
-                updateBottomBar(currentSong, shouldPlay)
+                setOriginalVocalMode(original)
             }
 
             override fun onVolume() {
@@ -2004,8 +1994,10 @@ class MainActivity : AppCompatActivity() {
     fun showFullScreenPlayer() {
         if (player == null) player = videoBackground
         if (isFullScreen || player == null || fullScreenContainer == null) return
+        main.removeCallbacks(autoFullscreenRunnable)
         playerReturnSurface = player
         playerReturnHost = activePlayerHost
+        playerTouchOverlay?.visibility = View.GONE
 
         fullScreenContainer!!.removeAllViews()
         fullScreenContainer!!.setBackgroundColor(Color.TRANSPARENT)
@@ -2041,7 +2033,7 @@ class MainActivity : AppCompatActivity() {
         controls.clipChildren = false
         controls.clipToPadding = false
         controls.setPadding(dp(8), dp(4), dp(8), dp(4))
-        controls.background = roundedBg(Color.argb(218, 4, 15, 28), 5, Color.argb(35, 255, 255, 255), 1)
+        controls.setBackgroundColor(Color.TRANSPARENT)
         val controlItems = ArrayList<View>(7)
 
         fun addControl(iconRes: Int, text: String, action: () -> Unit): Pair<TextView, ImageView> {
@@ -2049,6 +2041,7 @@ class MainActivity : AppCompatActivity() {
                 orientation = LinearLayout.VERTICAL
                 gravity = Gravity.CENTER
                 isFocusable = true
+                isFocusableInTouchMode = true
                 setBackgroundColor(Color.TRANSPARENT)
                 id = View.generateViewId()
                 clipChildren = false
@@ -2057,8 +2050,9 @@ class MainActivity : AppCompatActivity() {
             val icon = ImageView(this).apply {
                 setImageResource(iconRes)
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
+                alpha = 0.76f
             }
-            val caption = label(text, 12, Color.WHITE).apply {
+            val caption = label(text, 12, Color.rgb(184, 184, 184)).apply {
                 gravity = Gravity.CENTER
                 maxLines = 1
                 includeFontPadding = false
@@ -2072,13 +2066,13 @@ class MainActivity : AppCompatActivity() {
             }
             installPressFeedback(item)
             controlItems.add(item)
-            val params = LinearLayout.LayoutParams(dp(68), dp(66))
-            params.setMargins(dp(1), 0, dp(1), 0)
+            val params = LinearLayout.LayoutParams(dp(78), dp(68))
+            params.setMargins(dp(2), 0, dp(2), 0)
             controls.addView(item, params)
             return caption to icon
         }
 
-        addControl(R.drawable.ic_return_order, "返回") { exitFullScreenPlayer() }
+        addControl(R.drawable.ic_return_order, "返回点歌") { exitFullScreenPlayer() }
         addControl(R.drawable.ott_ic_ctrl_orderlist, "已点") {
             exitFullScreenPlayer()
             showOrderListPage()
@@ -2096,6 +2090,7 @@ class MainActivity : AppCompatActivity() {
         ) { togglePlay() }.also { (text, icon) -> fullScreenPauseText = text; fullScreenPauseIcon = icon }
         addControl(R.drawable.ott_ic_ctrl_replay, "重唱") { replay() }
         addControl(R.drawable.ott_ic_ctrl_volume, "调音") { showFullScreenVolumeDialog() }
+        fullScreenToneControl = controlItems.lastOrNull()
 
         controlItems.forEachIndexed { index, item ->
             item.nextFocusLeftId = controlItems.getOrNull(index - 1)?.id ?: item.id
@@ -2107,7 +2102,7 @@ class MainActivity : AppCompatActivity() {
         val controlsParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, dp(74), Gravity.TOP or Gravity.CENTER_HORIZONTAL
         )
-        controlsParams.topMargin = dp(70)
+        controlsParams.topMargin = dp(48)
         fullScreenContainer!!.addView(controls, controlsParams)
         fullScreenControls = controls
 
@@ -2187,9 +2182,17 @@ class MainActivity : AppCompatActivity() {
         fullScreenSeeking = false
         fullScreenControls = null
         fullScreenProgressRow = null
+        fullScreenVolumePanel = null
+        fullScreenVolumeIndicator = null
+        fullScreenVolumeMinusButton = null
+        fullScreenVolumePlusButton = null
+        fullScreenVolumeMuteButton = null
+        fullScreenToneControl = null
         fullScreenQrOverlay = null
         fullScreenChromeVisible = false
         main.removeCallbacks(hideFullScreenChromeRunnable)
+        main.removeCallbacks(hideFullScreenVolumeIndicatorRunnable)
+        scheduleAutoFullscreen()
     }
 
     private fun setFullScreenChromeVisible(visible: Boolean) {
@@ -2197,10 +2200,13 @@ class MainActivity : AppCompatActivity() {
         fullScreenChromeVisible = visible
         fullScreenControls?.visibility = if (visible) View.VISIBLE else View.GONE
         fullScreenProgressRow?.visibility = if (visible) View.VISIBLE else View.GONE
+        if (!visible) fullScreenVolumePanel?.visibility = View.GONE
         main.removeCallbacks(hideFullScreenChromeRunnable)
         if (visible && isFullScreen) {
             val controls = fullScreenControls
-            if (controls != null && !controls.hasFocus()) controls.getChildAt(0)?.requestFocus()
+            if (controls != null && !controls.hasFocus() && fullScreenVolumePanel?.hasFocus() != true) {
+                controls.getChildAt(0)?.requestFocus()
+            }
             main.postDelayed(hideFullScreenChromeRunnable, 5000L)
         }
     }
@@ -2232,59 +2238,124 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showFullScreenVolumeDialog() {
-        val previousVolume = musicVolume.coerceAtLeast(1)
-        val value = TextView(this).apply {
-            textSize = 24f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-        }
-        val seek = SeekBar(this).apply {
-            max = 100
-            progress = musicVolume
-        }
-        val mute = TextView(this).apply {
-            gravity = Gravity.CENTER
-            textSize = 17f
-            setTextColor(Color.WHITE)
-            setBackgroundResource(R.drawable.ott_bg_volume_ctrl_mute_button)
-        }
-        fun render() {
-            value.text = "音乐音量  ${musicVolume}%"
-            mute.text = if (musicVolume == 0) "恢复音量" else "静音"
-            if (seek.progress != musicVolume) seek.progress = musicVolume
-        }
-        seek.setOnSeekBarChangeListener(object : OnSeekBarChangeListener {
-            override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
-                if (!fromUser) return
-                musicVolume = progress
-                applySystemMusicVolume()
-                applyPlaybackMode()
-                render()
+        if (!isFullScreen || fullScreenContainer == null) return
+        val existing = fullScreenVolumePanel
+        if (existing != null) {
+            existing.visibility = if (existing.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+            if (existing.visibility == View.VISIBLE) {
+                fullScreenVolumeMinusButton?.requestFocus()
+            } else {
+                fullScreenToneControl?.requestFocus()
             }
-            override fun onStartTrackingTouch(bar: SeekBar?) = Unit
-            override fun onStopTrackingTouch(bar: SeekBar?) { saveState() }
+            return
+        }
+
+        if (musicVolume > 0) fullScreenPreviousVolume = musicVolume
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            isClickable = true
+        }
+        val indicator = CircularVolumeView(this).apply {
+            setVolume(musicVolume)
+            visibility = View.GONE
+            alpha = 1f
+        }
+        panel.addView(indicator, LinearLayout.LayoutParams(dp(154), dp(154)).apply {
+            bottomMargin = dp(22)
         })
-        mute.setOnClickListener {
-            musicVolume = if (musicVolume == 0) previousVolume else 0
+        panel.addView(label("调音", 26, Color.WHITE).apply {
+            gravity = Gravity.CENTER
+        }, LinearLayout.LayoutParams(dp(420), dp(54)))
+
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+        }
+        fun volumeButton(text: String): TextView = TextView(this).apply {
+            this.text = text
+            id = View.generateViewId()
+            gravity = Gravity.CENTER
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setBackgroundResource(R.drawable.ott_bg_volume_ctrl_action_button)
+            isFocusable = true
+            isFocusableInTouchMode = true
+            isClickable = true
+            includeFontPadding = false
+            setPadding(dp(14), 0, dp(14), 0)
+        }
+        val minus = volumeButton("音量 －")
+        val plus = volumeButton("音量 ＋")
+        val mute = volumeButton("静音").apply {
+            compoundDrawablePadding = dp(8)
+        }
+        fun renderMuteButton() {
+            mute.text = if (musicVolume == 0) "放音" else "静音"
+            val drawable = getDrawable(
+                if (musicVolume == 0) R.drawable.ic_ctrl_sound_enable
+                else R.drawable.ic_ctrl_sound_disable
+            )
+            drawable?.setBounds(0, 0, dp(23), dp(23))
+            mute.setCompoundDrawables(null, null, drawable, null)
+        }
+        fun showVolumeResult() {
+            indicator.animate().cancel()
+            indicator.setVolume(musicVolume)
+            indicator.alpha = 1f
+            indicator.visibility = View.VISIBLE
+            renderMuteButton()
             applySystemMusicVolume()
             applyPlaybackMode()
-            render()
             saveState()
+            main.removeCallbacks(hideFullScreenVolumeIndicatorRunnable)
+            main.postDelayed(hideFullScreenVolumeIndicatorRunnable, 2200L)
+            setFullScreenChromeVisible(true)
         }
-        val box = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(30), dp(20), dp(30), dp(24))
-            addView(value, LinearLayout.LayoutParams(-1, dp(52)))
-            addView(seek, LinearLayout.LayoutParams(-1, dp(48)))
-            addView(mute, LinearLayout.LayoutParams(-1, dp(48)).apply { topMargin = dp(12) })
+        minus.setOnClickListener {
+            musicVolume = (musicVolume - 5).coerceAtLeast(0)
+            if (musicVolume > 0) fullScreenPreviousVolume = musicVolume
+            showVolumeResult()
         }
-        render()
-        AlertDialog.Builder(this)
-            .setTitle("音量控制")
-            .setView(box)
-            .setNegativeButton("关闭", null)
-            .create()
-            .showForTv()
+        plus.setOnClickListener {
+            musicVolume = (musicVolume + 5).coerceAtMost(100)
+            if (musicVolume > 0) fullScreenPreviousVolume = musicVolume
+            showVolumeResult()
+        }
+        mute.setOnClickListener {
+            if (musicVolume > 0) {
+                fullScreenPreviousVolume = musicVolume
+                musicVolume = 0
+            } else {
+                musicVolume = fullScreenPreviousVolume.coerceAtLeast(5)
+            }
+            showVolumeResult()
+        }
+        listOf(minus, plus, mute).forEachIndexed { index, button ->
+            button.nextFocusLeftId = listOf(minus, plus, mute).getOrNull(index - 1)?.id ?: button.id
+            button.nextFocusRightId = listOf(minus, plus, mute).getOrNull(index + 1)?.id ?: button.id
+            button.nextFocusUpId = fullScreenToneControl?.id ?: button.id
+            button.nextFocusDownId = button.id
+            buttons.addView(button, LinearLayout.LayoutParams(dp(136), dp(58)).apply {
+                leftMargin = dp(6)
+                rightMargin = dp(6)
+            })
+        }
+        panel.addView(buttons, LinearLayout.LayoutParams(-2, dp(70)).apply { topMargin = dp(12) })
+        renderMuteButton()
+
+        fullScreenContainer!!.addView(
+            panel,
+            FrameLayout.LayoutParams(-2, -2, Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM).apply {
+                bottomMargin = dp(86)
+            },
+        )
+        fullScreenVolumePanel = panel
+        fullScreenVolumeIndicator = indicator
+        fullScreenVolumeMinusButton = minus
+        fullScreenVolumePlusButton = plus
+        fullScreenVolumeMuteButton = mute
+        minus.requestFocus()
     }
 
     /**
@@ -2586,7 +2657,6 @@ class MainActivity : AppCompatActivity() {
                 + "\n录音：" + (if (recorder == null) "未录音" else "录音中")
                 + "\n灯光：" + lightMode
                 + "\n跑马灯：" + (if (marqueeEnabled) marqueeText else "关闭")
-                + "\n公播：" + (if (pubPlayEnabled) "开启 / " + pubPlayInterval + " 分钟" else "关闭")
                 + "\n音画同步：" + audioDelayMs + "ms"
                 + "\n包房广播：" + (if (tableBroadcastEnabled) tableBroadcastText else "关闭"))
         AlertDialog.Builder(this).setTitle("播放状态").setMessage(message)
@@ -2652,7 +2722,6 @@ class MainActivity : AppCompatActivity() {
             "下载管理",
             "U盘加歌",
             "用户影片",
-            "公播管理",
             "灯光迪斯科",
             "手机点歌",
             "录音评分"
@@ -3138,13 +3207,6 @@ class MainActivity : AppCompatActivity() {
                         saveState()
                         status!!.setText("远程灯光：" + mode)
                     })
-                } else if ("pubplay" == a) {
-                    val enabled = params.get("enabled")
-                    main.post(Runnable {
-                        pubPlayEnabled = "1" == enabled || "true".equals(enabled, ignoreCase = true)
-                        saveState()
-                        status!!.setText(if (pubPlayEnabled) "远程开启公播" else "远程关闭公播")
-                    })
                 } else if ("marquee" == a) {
                     val text = params.get("text")
                     main.post(Runnable {
@@ -3529,42 +3591,6 @@ class MainActivity : AppCompatActivity() {
         right.addView(list, LinearLayout.LayoutParams(-1, 0, 1f))
     }
 
-    private fun showPubPlaySettings() {
-        val box = LinearLayout(this)
-        box.setOrientation(LinearLayout.VERTICAL)
-        box.addView(label("当前：" + (if (pubPlayEnabled) "已开启" else "已关闭"), 20, Color.WHITE))
-        box.addView(
-            label(
-                "空闲 " + pubPlayInterval + " 分钟后自动播放本地影片/公播素材。",
-                20,
-                Color.LTGRAY
-            )
-        )
-        box.addView(controlRow("间隔 -", "间隔 +", Runnable {
-            pubPlayInterval = clamp(pubPlayInterval - 1, 1, 60)
-            saveState()
-            showPubPlaySettings()
-        }, Runnable {
-            pubPlayInterval = clamp(pubPlayInterval + 1, 1, 60)
-            saveState()
-            showPubPlaySettings()
-        }))
-        AlertDialog.Builder(this)
-            .setTitle("公播管理")
-            .setView(box)
-            .setPositiveButton(
-                if (pubPlayEnabled) "关闭公播" else "开启公播",
-                DialogInterface.OnClickListener { d: DialogInterface?, w: Int ->
-                    pubPlayEnabled = !pubPlayEnabled
-                    saveState()
-                    toast(if (pubPlayEnabled) "公播已开启" else "公播已关闭")
-                })
-            .setNegativeButton(
-                "素材列表",
-                DialogInterface.OnClickListener { d: DialogInterface?, w: Int -> showLocalMovies() })
-            .create().showForTv()
-    }
-
     private fun showMarqueeSettings() {
         val box = LinearLayout(this)
         box.setOrientation(LinearLayout.VERTICAL)
@@ -3635,15 +3661,6 @@ class MainActivity : AppCompatActivity() {
         content!!.addView(left, LinearLayout.LayoutParams(dp(300), -1))
         left.addView(sectionTitle("影片操作"))
         left.addView(button("扫描影片目录", View.OnClickListener { v: View? -> showLocalMovies() }))
-        left.addView(
-            button(
-                if (pubPlayEnabled) "关闭公播" else "开启公播",
-                View.OnClickListener { v: View? ->
-                    pubPlayEnabled = !pubPlayEnabled
-                    saveState()
-                    showLocalMovies()
-                })
-        )
         left.addView(label("目录：/sdcard/MaidongKTV/movies 或 U盘/movies", 18, Color.LTGRAY))
 
         val right = panel()
@@ -3698,7 +3715,6 @@ class MainActivity : AppCompatActivity() {
         else if ("下载管理" == tool) showDownloads()
         else if ("U盘加歌" == tool) showUdisk()
         else if ("用户影片" == tool) showLocalMovies()
-        else if ("公播管理" == tool) showPubPlaySettings()
         else if ("灯光迪斯科" == tool) showDisco()
         else if ("手机点歌" == tool) showMobileRemoteDialog()
         else if ("录音评分" == tool) showScoreDialog()
@@ -4434,6 +4450,7 @@ class MainActivity : AppCompatActivity() {
             }
 
             updateBottomBar(song, true)
+            scheduleAutoFullscreen()
 
             if (song.hasLocalFile()) {
                 playLocalFile(song)
@@ -4463,8 +4480,9 @@ class MainActivity : AppCompatActivity() {
                 return
             }
             val f = File(localPath)
-            if (!f.exists() || f.length() < SongOkDownloadManager.MIN_VALID_FILE_SIZE) {
-                Log.w(TAG, "Local file not found: " + song.path)
+            val inspection = SongFileValidator.inspect(f, SongFileValidator.requiresTransportStream(f))
+            if (!inspection.valid) {
+                Log.w(TAG, "Invalid local file: ${song.path}, ${inspection.reason}")
                 if (f.exists()) runCatching { f.delete() }
                 song.path = null
                 toast("本地文件丢失，重新下载...")
@@ -4811,20 +4829,16 @@ class MainActivity : AppCompatActivity() {
                 main.post(Runnable {
                     downloads.removeAll { stableId(it.song) == stableId(song) }
                     song.path = localPath
-                    val shouldStartPendingSong = pendingPlayAfterDownloadId == stableId(song)
+                    val shouldAddToQueue = pendingQueueSongIds.remove(stableId(song))
                     Log.i(
                         TAG,
-                        "downloadComplete song=${stableId(song)} pending=$shouldStartPendingSong " +
+                        "downloadComplete song=${stableId(song)} pendingQueue=$shouldAddToQueue " +
                             "current=${currentSong?.let(::stableId)} preparing=$playbackPreparing path=$localPath",
                     )
-                    if (shouldStartPendingSong) {
-                        pendingPlayAfterDownloadId = null
-                        publicPlaybackActive = false
-                        play(song)
-                    }
+                    if (shouldAddToQueue) addReadySongToQueue(song)
                     if (currentTabIndex == 6) loadDownloadedList()
                     if (currentSong?.equals(song) == true && playbackPreparing) hideDownloadProgress()
-                    if (!shouldStartPendingSong && currentSong?.equals(song) == true && playbackPreparing) {
+                    if (!shouldAddToQueue && currentSong?.equals(song) == true && playbackPreparing) {
                         switchToLocalPlayback(song)
                     }
                 })
@@ -4837,7 +4851,7 @@ class MainActivity : AppCompatActivity() {
                     stateDatabase.updateDownload(song, "failed", 0, error = error)
                 }
                 main.post(Runnable {
-                    if (pendingPlayAfterDownloadId == stableId(song)) pendingPlayAfterDownloadId = null
+                    val wasPendingQueue = pendingQueueSongIds.remove(stableId(song))
                     if (currentSong != null && currentSong!!.equals(song)) playbackPreparing = false
                     for (task in downloads) {
                         if (task.song === song || task.song.id != null && task.song.id == song.id) {
@@ -4847,6 +4861,7 @@ class MainActivity : AppCompatActivity() {
                     }
                     if (currentTabIndex == 6) loadDownloadedList()
                     if (currentSong?.equals(song) == true) hideDownloadProgress()
+                    if (wasPendingQueue) toast("下载失败，未加入已点：${song.title}")
                 })
             }
         })
@@ -4892,12 +4907,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playNext(fromCompletion: Boolean = false) {
-        if (publicPlaybackActive) {
-            publicPlaybackActive = false
-            currentSong = null
-            startIdlePublicPlayback()
-            return
-        }
         // 单曲循环只影响自然播完；用户主动切歌始终进入下一首。
         if (fromCompletion && loopOne && player != null && currentSong != null) {
             playWhenPrepared = true
@@ -4916,7 +4925,6 @@ class MainActivity : AppCompatActivity() {
             clearLyrics()
             updateBottomBar(null, false)
             if (status != null) status!!.setText("播放完成，请点歌")
-            startIdlePublicPlayback()
             return
         }
         // 移除当前歌曲，放入已唱列表
@@ -4938,7 +4946,6 @@ class MainActivity : AppCompatActivity() {
             clearLyrics()
             updateBottomBar(null, false)
             if (status != null) status!!.setText("播放完成" + (if (orderQueue.isEmpty()) "" else "，点击播放继续"))
-            if (orderQueue.isEmpty()) startIdlePublicPlayback()
         }
     }
 
@@ -4949,6 +4956,7 @@ class MainActivity : AppCompatActivity() {
         if (playbackPreparing) {
             updateBottomBar(currentSong, targetPlaying)
             if (targetPlaying) hidePlaybackNoticeNow() else showPlaybackModeNotice("暂停", true)
+            scheduleAutoFullscreen()
             persistRuntimeState()
             return
         }
@@ -4964,6 +4972,7 @@ class MainActivity : AppCompatActivity() {
             hidePlaybackNoticeNow()
         }
         updateBottomBar(currentSong, targetPlaying)
+        scheduleAutoFullscreen()
         persistRuntimeState()
     }
 
@@ -5355,7 +5364,11 @@ class MainActivity : AppCompatActivity() {
 
     private fun hasValidLocalSongFile(song: Song): Boolean {
         val direct = song.path?.let(::File)
-        if (direct?.exists() == true && direct.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE) return true
+        if (direct != null && SongFileValidator.inspect(
+                direct,
+                SongFileValidator.requiresTransportStream(direct),
+            ).valid
+        ) return true
         return isDownloaded(song)
     }
 
@@ -5676,6 +5689,7 @@ class MainActivity : AppCompatActivity() {
     private var videoBackground: KtvVideoView? = null
     private var playerLayerRoot: FrameLayout? = null
     private var playerFocusBorder: View? = null
+    private var playerTouchOverlay: View? = null
     private var homePlayerHost: View? = null
     private var subPagePlayerHost: View? = null
     private var activePlayerHost: View? = null
@@ -5855,9 +5869,24 @@ class MainActivity : AppCompatActivity() {
     private var fullScreenSeeking = false
     private var fullScreenControls: LinearLayout? = null
     private var fullScreenProgressRow: View? = null
+    private var fullScreenToneControl: View? = null
+    private var fullScreenVolumePanel: View? = null
+    private var fullScreenVolumeIndicator: CircularVolumeView? = null
+    private var fullScreenVolumeMinusButton: TextView? = null
+    private var fullScreenVolumePlusButton: TextView? = null
+    private var fullScreenVolumeMuteButton: TextView? = null
+    private var fullScreenPreviousVolume = 70
     private var fullScreenChromeVisible = false
+    private val hideFullScreenVolumeIndicatorRunnable = Runnable {
+        fullScreenVolumeIndicator?.animate()?.alpha(0f)?.setDuration(220L)?.withEndAction {
+            fullScreenVolumeIndicator?.visibility = View.GONE
+            fullScreenVolumeIndicator?.alpha = 1f
+        }?.start()
+    }
     private val hideFullScreenChromeRunnable = Runnable {
-        if (isFullScreen) setFullScreenChromeVisible(false)
+        if (isFullScreen && fullScreenVolumePanel?.visibility != View.VISIBLE) {
+            setFullScreenChromeVisible(false)
+        }
     }
     private var playbackModeNotice: TextView? = null
     private var songIntroNotice: TextView? = null
@@ -6149,6 +6178,13 @@ class MainActivity : AppCompatActivity() {
                 alpha = 0f
                 elevation = dp(9).toFloat()
             }.also { root.addView(it, insertionIndex + 2, FrameLayout.LayoutParams(dp(78), dp(78))) }
+            playerTouchOverlay = View(this).apply {
+                setBackgroundColor(Color.TRANSPARENT)
+                isClickable = true
+                isFocusable = false
+                setOnClickListener { showFullScreenPlayer() }
+                elevation = dp(10).toFloat()
+            }.also { root.addView(it, insertionIndex + 1, FrameLayout.LayoutParams(1, 1)) }
         }
         homeVideo = persistentVideo
         videoBackground = persistentVideo
@@ -6157,6 +6193,11 @@ class MainActivity : AppCompatActivity() {
         playbackEngine.attach(persistentVideo)
         movePlayerToHost(homePlayerHost)
         listOfNotNull(homePlayerHost, subPagePlayerHost).forEach(::bindPlayerHostFocus)
+        // The persistent video surface sits above its placeholder; forward touch entry to full screen too.
+        persistentVideo.setOnTouchListener { _, event ->
+            if (event.action == MotionEvent.ACTION_UP) showFullScreenPlayer()
+            true
+        }
 
         // 设置子页面返回按钮
         if (btnBack != null) btnBack!!.setOnClickListener { navigateBack() }
@@ -6402,6 +6443,16 @@ class MainActivity : AppCompatActivity() {
             border.layoutParams = borderParams
             border.isActivated = host.hasFocus()
             border.visibility = if (host.hasFocus() && !isFullScreen) View.VISIBLE else View.GONE
+        }
+        playerTouchOverlay?.let { overlay ->
+            val overlayParams = (overlay.layoutParams as? FrameLayout.LayoutParams)
+                ?: FrameLayout.LayoutParams(host.width, host.height)
+            overlayParams.width = host.width
+            overlayParams.height = host.height
+            overlayParams.leftMargin = params.leftMargin
+            overlayParams.topMargin = params.topMargin
+            overlay.layoutParams = overlayParams
+            overlay.visibility = if (isFullScreen) View.GONE else View.VISIBLE
         }
         updatePlaybackNoticeBounds()
     }
@@ -6803,7 +6854,7 @@ class MainActivity : AppCompatActivity() {
             tab.minWidth = 0
             tab.setPadding(0, 0, 0, 0)
             tab.gravity = Gravity.CENTER
-            tab.contentDescription = "focus:tab:$label"
+            tab.setAccessibleFocus("focus:tab:$label", "分类，$label")
             tab.isFocusable = true
             tab.isClickable = true
             updateTabStyle(tab, index == currentTabIndex)
@@ -7677,6 +7728,12 @@ class MainActivity : AppCompatActivity() {
             SettingsEntry(R.drawable.ott_ic_data_setting, "数据设置", "数据库、歌曲下载、歌曲文件相关设置") { showSettingsSection(1) },
             SettingsEntry(R.drawable.ott_ic_play, "播放设置", "播放器、视频窗口相关设置") { showSettingsSection(2) },
             SettingsEntry(R.drawable.ott_ic_sound, "声音设置") { showSoundSettingsDialog() },
+            SettingsEntry(
+                R.drawable.ott_ic_data_upgrade,
+                "应用更新",
+                "当前版本 ${BuildConfig.VERSION_NAME}，更新来源：Gitee Release",
+                "检查更新",
+            ) { checkAppUpdate(true) },
             SettingsEntry(R.drawable.ott_ic_about_us, "关于", actionText = "查看") { showAboutDialog() },
         )
         activeSettingsEntries = entries
@@ -7710,9 +7767,6 @@ class MainActivity : AppCompatActivity() {
                 },
             )
             1 -> listOf(
-                SettingsEntry(R.drawable.ott_ic_data_upgrade, "应用更新", "当前版本 ${BuildConfig.VERSION_NAME}，更新来源：Gitee Release", "检查更新") {
-                    checkAppUpdate(true)
-                },
                 SettingsEntry(R.drawable.ott_ic_data_upgrade, "曲库", "数据库 ${library.muse.songCount()} 首  本地已下载 ${countDownloadedFiles()} 首", "更新") {
                     io.execute { library.muse.close(); library.muse.open(); main.post { showSettingsSection(1, false) } }
                 },
@@ -7727,7 +7781,6 @@ class MainActivity : AppCompatActivity() {
                 SettingsEntry(R.drawable.ott_ic_setting_storage_space, "硬盘读写权限") { toast(storageStatusText()) },
             )
             2 -> listOf(
-                SettingsEntry(R.drawable.ott_ic_pub_play, "公播") { showPubPlayDialog() },
                 SettingsEntry(R.drawable.ott_ic_download_setting, "开机清空下载列表", "开机时删除本地已下载歌曲并清理数据库状态", action = { clearDownloadsOnBoot = !clearDownloadsOnBoot; saveState() }, checked = clearDownloadsOnBoot),
                 SettingsEntry(R.drawable.ott_ic_tv_display_mode, "自动全屏", "设置多久未操作后自动进入全屏", "设置间隔") { showAutoFullscreenDialog() },
                 SettingsEntry(R.drawable.ott_ic_play, "音画同步") { showAudioSyncDialog() },
@@ -7769,7 +7822,11 @@ class MainActivity : AppCompatActivity() {
         val result = LinkedHashMap<String, Song>()
         library.muse.localPathSongs().forEach { song ->
             val resolved = File(MuseDatabase.resolveSongFilePath(song))
-            if (resolved.isFile && resolved.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE) {
+            if (SongFileValidator.inspect(
+                    resolved,
+                    SongFileValidator.requiresTransportStream(resolved),
+                ).valid
+            ) {
                 song.path = resolved.absolutePath
                 result.putIfAbsent(stableId(song), song)
             }
@@ -7778,17 +7835,20 @@ class MainActivity : AppCompatActivity() {
         val downloadedFiles = MuseDatabase.songDirectories()
             .flatMap { it.listFiles().orEmpty().asIterable() }
             .distinctBy { it.name }
-        downloadedFiles.filter {
-            it.isFile && it.parentFile?.absolutePath == downloadedSongDirectory().absolutePath &&
-                !it.name.endsWith(".download") && it.length() < SongOkDownloadManager.MIN_VALID_FILE_SIZE
-        }.forEach { invalid ->
+        val inspections = downloadedFiles.asSequence()
+            .filter { it.isFile && !it.name.endsWith(".download") }
+            .associateWith { file ->
+                SongFileValidator.inspect(file, SongFileValidator.requiresTransportStream(file))
+            }
+        inspections.filter { (file, inspection) ->
+            file.parentFile?.absolutePath == downloadedSongDirectory().absolutePath && !inspection.valid
+        }.keys.forEach { invalid ->
+            Log.w(TAG, "Deleting invalid downloaded song: ${invalid.absolutePath}, ${inspections[invalid]?.reason}")
+            SongFileValidator.forget(invalid)
             cleanupSidecars(invalid)
             invalid.delete()
         }
-        val validFiles = downloadedFiles.filter {
-            it.isFile && it.exists() && !it.name.endsWith(".download") &&
-                it.length() >= SongOkDownloadManager.MIN_VALID_FILE_SIZE
-        }
+        val validFiles = inspections.filter { (file, inspection) -> file.exists() && inspection.valid }.keys
         val filesByName = validFiles.associateBy { it.name }
         val databaseSongs = library.muse.songsByFilenames(filesByName.keys)
         databaseSongs.forEach { song ->
@@ -8060,7 +8120,7 @@ class MainActivity : AppCompatActivity() {
             .setPositiveButton("确认") { _, _ ->
                 autoFullscreenSeconds = seconds[pending]
                 saveState()
-                schedulePublicFullscreen()
+                scheduleAutoFullscreen()
                 showSettingsSection(2, false)
             }.create().showForTv()
     }
@@ -8113,11 +8173,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSoundSettingsDialog() {
-        var pendingPubSongOriginal = pubSongOriginal
         var pendingOrderedSongOriginal = orderedSongOriginal
-        var pendingPubVolumeMode = pubVolumeMode
         var pendingOrderedVolumeMode = orderedVolumeMode
-        var pendingPubVocalMode = pubVocalMode
         var pendingOrderedVocalMode = orderedVocalMode
         var pendingMusicVolume = musicVolume
         fun title(text: String) = TextView(this).apply {
@@ -8145,8 +8202,6 @@ class MainActivity : AppCompatActivity() {
         val musicVolumeTitle = title("歌曲最大音量  ${pendingMusicVolume}%")
         val left = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(title("切到公播歌曲时音量："))
-            addView(choices(arrayOf("跟随上首音量", "跟随上首公播歌曲音量"), pendingPubVolumeMode) { pendingPubVolumeMode = it })
             addView(title("切到点播歌曲时音量："))
             addView(choices(arrayOf("跟随上首音量", "跟随上首点播歌曲音量"), pendingOrderedVolumeMode) { pendingOrderedVolumeMode = it })
             addView(musicVolumeTitle)
@@ -8164,10 +8219,6 @@ class MainActivity : AppCompatActivity() {
         }
         val right = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            addView(title("公播歌曲原伴唱"))
-            addView(choices(arrayOf("原唱", "伴唱"), if (pendingPubSongOriginal) 0 else 1, true) { pendingPubSongOriginal = it == 0 })
-            addView(title("切到公播歌曲时原伴唱："))
-            addView(choices(arrayOf("跟随上首原伴唱", "跟随上首公播原伴唱", "固定公播原伴唱"), pendingPubVocalMode) { pendingPubVocalMode = it })
             addView(title("点播歌曲原伴唱"))
             addView(choices(arrayOf("原唱", "伴唱"), if (pendingOrderedSongOriginal) 0 else 1, true) { pendingOrderedSongOriginal = it == 0 })
             addView(title("切到点播歌曲时原伴唱："))
@@ -8183,11 +8234,8 @@ class MainActivity : AppCompatActivity() {
             .setView(scroll)
             .setNegativeButton("关闭", null)
             .setPositiveButton("确认") { _, _ ->
-                pubSongOriginal = pendingPubSongOriginal
                 orderedSongOriginal = pendingOrderedSongOriginal
-                pubVolumeMode = pendingPubVolumeMode
                 orderedVolumeMode = pendingOrderedVolumeMode
-                pubVocalMode = pendingPubVocalMode
                 orderedVocalMode = pendingOrderedVocalMode
                 musicVolume = pendingMusicVolume
                 applyPlaybackMode()
@@ -8223,39 +8271,6 @@ class MainActivity : AppCompatActivity() {
             .setItems(items) { _, which ->
                 setVocalChannelMode(items[which])
                 showSettingsSection(3)
-            }
-            .create().showForTv()
-    }
-
-    private fun showPubPlayDialog() {
-        val modes = arrayOf("热歌", "我的收藏", "自定义", "高清")
-        var pendingMode = pubPlayMode
-        val panel = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(8), dp(24), dp(18))
-            addView(dialogSingleChoiceGroup(modes, pubPlayMode) { pendingMode = it })
-            addView(TextView(this@MainActivity).apply {
-                text = "自定义公播列表                                      +新增公播"
-                textSize = 16f
-                setTextColor(Color.WHITE)
-                setPadding(0, dp(12), 0, dp(12))
-            })
-            addView(TextView(this@MainActivity).apply {
-                text = "暂无自定义公播"
-                textSize = 17f
-                gravity = Gravity.CENTER
-                setTextColor(Color.LTGRAY)
-                setBackgroundColor(Color.rgb(59, 59, 64))
-            }, LinearLayout.LayoutParams(-1, dp(185)))
-        }
-        AlertDialog.Builder(this).setTitle("公播")
-            .setView(panel)
-            .setNegativeButton("关闭", null)
-            .setPositiveButton("确认") { _, _ ->
-                pubPlayMode = pendingMode
-                pubPlayEnabled = true
-                saveState()
-                schedulePublicFullscreen()
             }
             .create().showForTv()
     }
@@ -8349,7 +8364,7 @@ class MainActivity : AppCompatActivity() {
             cat.setTextSize(16f)
             cat.setPadding(dp(12), 0, dp(12), 0)
             cat.gravity = Gravity.CENTER
-            cat.contentDescription = "focus:category:${currentCategories[i]}"
+            cat.setAccessibleFocus("focus:category:${currentCategories[i]}", "分类，${currentCategories[i]}")
             cat.setFocusable(true)
             cat.setClickable(true)
             // 设置选中状态
@@ -8676,7 +8691,7 @@ class MainActivity : AppCompatActivity() {
     private fun renderSongList() {
         val list = songList ?: return
         val focusedView = window.decorView.findFocus()?.takeIf { isDescendantOf(it, list) }
-        val focusedMarker = focusedView?.contentDescription?.toString()
+        val focusedMarker = focusedView?.focusMarker()
             ?.takeIf { it.startsWith(SongListAdapter.FOCUS_PREFIX) }
         val oldSelectedPosition = list.selectedItemPosition
         val oldFocusedTop = focusedView?.top
@@ -8731,7 +8746,7 @@ class MainActivity : AppCompatActivity() {
                 if (list.adapter !== listAdapter) return@post
                 list.setSelection(targetPosition)
                 val row = list.getChildAt(targetPosition - list.firstVisiblePosition)
-                val target = row?.let { findViewByContentDescription(it, focusedMarker) }
+                val target = row?.let { findViewByFocusMarker(it, focusedMarker) }
                 if (target != null) {
                     target.requestFocus()
                     target.refreshDrawableState()
@@ -8742,10 +8757,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun findViewByContentDescription(root: View, marker: String): View? {
-        if (root.contentDescription?.toString() == marker) return root
+    private fun findViewByFocusMarker(root: View, marker: String): View? {
+        if (root.focusMarker() == marker) return root
         if (root is ViewGroup) repeat(root.childCount) { index ->
-            findViewByContentDescription(root.getChildAt(index), marker)?.let { return it }
+            findViewByFocusMarker(root.getChildAt(index), marker)?.let { return it }
         }
         return null
     }
@@ -8972,61 +8987,51 @@ class MainActivity : AppCompatActivity() {
      * 添加歌曲到已点列表
      */
     private fun addToQueue(song: Song) {
-        if (!orderQueue!!.contains(song)) {
-            val wasQueueEmpty = orderQueue!!.isEmpty()
-            val startWhenReady = wasQueueEmpty
-            orderQueue.add(song)
-            song.playCount++
-            if (::stateDatabase.isInitialized) runCatching {
-                stateIo.execute { stateDatabase.markSongClicked(song) }
-            }
-            saveState()
-            updateOrderBadge()
-            toast("已点: " + song.title + (if (song.singer != null) " - " + song.singer else ""))
-
-            // 只有空队列接到第一首点歌时才允许启动；已有点歌播放中永远只追加队尾。
-            if (song.hasLocalFile()) {
-                if (startWhenReady) {
-                    publicPlaybackActive = false
-                    play(song)
-                }
-            } else {
-                if (startWhenReady) pendingPlayAfterDownloadId = stableId(song)
-                if (!isDownloading(song)) downloadSong(song)
-            }
-        } else {
+        if (orderQueue!!.contains(song)) {
             toast("已在列表中: " + song.title)
+            return
         }
+        if (!isSongReadyForQueue(song)) {
+            val id = stableId(song)
+            val newlyPending = pendingQueueSongIds.add(id)
+            toast(
+                if (newlyPending) "正在下载，完成后自动加入已点：${song.title}"
+                else "歌曲正在下载，尚未进入已点：${song.title}",
+            )
+            if (!isDownloading(song)) downloadSong(song)
+            return
+        }
+        addReadySongToQueue(song)
     }
 
-    private fun startIdlePublicPlayback() {
-        if (!pubPlayEnabled) return
-        if (orderQueue!!.isNotEmpty() || currentSong != null) return
-        val candidates = downloads.asSequence().map { it.song }
-            .plus(library.allSongs().asSequence())
-            .filter { it.hasLocalFile() }
-            .distinctBy(::stableId)
-            .toList()
-        if (candidates.isEmpty()) return
-        val song = candidates[publicPlaybackIndex.mod(candidates.size)]
-        publicPlaybackIndex = (publicPlaybackIndex + 1).mod(candidates.size)
-        publicPlaybackActive = true
-        play(song)
-        schedulePublicFullscreen()
+    private fun isSongReadyForQueue(song: Song): Boolean =
+        SongOkDownloadManager.isDownloaded(song) || song.hasLocalFile()
+
+    private fun addReadySongToQueue(song: Song) {
+        if (orderQueue!!.contains(song)) return
+        val wasQueueEmpty = orderQueue!!.isEmpty()
+        orderQueue.add(song)
+        song.playCount++
+        if (::stateDatabase.isInitialized) runCatching {
+            stateIo.execute { stateDatabase.markSongClicked(song) }
+        }
+        saveState()
+        updateOrderBadge()
+        if (currentPage == "已点" || currentPage == "首页") renderQueue()
+        toast("已点: " + song.title + (if (song.singer != null) " - " + song.singer else ""))
+        if (wasQueueEmpty) play(song)
     }
 
-    private fun schedulePublicFullscreen() {
-        main.removeCallbacks(publicFullscreenRunnable)
-        if (pubPlayEnabled && publicPlaybackActive) {
-            val delay = if (autoFullscreenSeconds > 0) autoFullscreenSeconds * 1000L
-                else pubPlayInterval.coerceAtLeast(1) * 60_000L
-            main.postDelayed(publicFullscreenRunnable, delay)
+    private fun scheduleAutoFullscreen() {
+        main.removeCallbacks(autoFullscreenRunnable)
+        if (autoFullscreenSeconds > 0 && currentSong != null && playWhenPrepared && !isFullScreen) {
+            main.postDelayed(autoFullscreenRunnable, autoFullscreenSeconds * 1000L)
         }
     }
 
     override fun onUserInteraction() {
         super.onUserInteraction()
-        if (publicPlaybackActive && !isFullScreen) schedulePublicFullscreen()
+        if (!isFullScreen) scheduleAutoFullscreen()
     }
 
     private fun busy(show: Boolean, message: String?) {
@@ -9066,9 +9071,6 @@ class MainActivity : AppCompatActivity() {
         store.scoreEnabled = scoreEnabled
         store.marqueeEnabled = marqueeEnabled
         store.marqueeText = marqueeText!!
-        store.pubPlayEnabled = pubPlayEnabled
-        store.pubPlayInterval = pubPlayInterval
-        store.pubPlayMode = pubPlayMode
         store.playWhileDownloading = playWhileDownloading
         store.clearDownloadsOnBoot = clearDownloadsOnBoot
         store.autoFullscreenSeconds = autoFullscreenSeconds
@@ -9077,11 +9079,8 @@ class MainActivity : AppCompatActivity() {
         store.reserveStorageGb = reserveStorageGb
         store.floatingButtonEnabled = floatingButtonEnabled
         store.songTitleSubtitleEnabled = songTitleSubtitleEnabled
-        store.pubSongOriginal = pubSongOriginal
         store.orderedSongOriginal = orderedSongOriginal
-        store.pubVolumeMode = pubVolumeMode
         store.orderedVolumeMode = orderedVolumeMode
-        store.pubVocalMode = pubVocalMode
         store.orderedVocalMode = orderedVocalMode
         store.voiceEngineEnabled = voiceEngineEnabled
         store.voiceEngineVolume = voiceEngineVolume
@@ -9134,9 +9133,6 @@ class MainActivity : AppCompatActivity() {
         scoreEnabled = store.scoreEnabled
         marqueeEnabled = store.marqueeEnabled
         marqueeText = store.marqueeText
-        pubPlayEnabled = store.pubPlayEnabled
-        pubPlayInterval = store.pubPlayInterval
-        pubPlayMode = store.pubPlayMode
         playWhileDownloading = store.playWhileDownloading
         clearDownloadsOnBoot = store.clearDownloadsOnBoot
         autoFullscreenSeconds = store.autoFullscreenSeconds
@@ -9145,11 +9141,8 @@ class MainActivity : AppCompatActivity() {
         reserveStorageGb = store.reserveStorageGb
         floatingButtonEnabled = store.floatingButtonEnabled
         songTitleSubtitleEnabled = store.songTitleSubtitleEnabled
-        pubSongOriginal = store.pubSongOriginal
         orderedSongOriginal = store.orderedSongOriginal
-        pubVolumeMode = store.pubVolumeMode
         orderedVolumeMode = store.orderedVolumeMode
-        pubVocalMode = store.pubVocalMode
         orderedVocalMode = store.orderedVocalMode
         voiceEngineEnabled = store.voiceEngineEnabled
         voiceEngineVolume = store.voiceEngineVolume
@@ -9207,11 +9200,27 @@ class MainActivity : AppCompatActivity() {
                 code == KeyEvent.KEYCODE_NUMPAD_ENTER
             val direction = code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT ||
                 code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN
+            val volumePanelVisible = fullScreenVolumePanel?.visibility == View.VISIBLE
+            val volumePanelHasFocus = volumePanelVisible && fullScreenVolumePanel?.hasFocus() == true
+            if (code == KeyEvent.KEYCODE_BACK && volumePanelVisible) {
+                main.removeCallbacks(hideFullScreenVolumeIndicatorRunnable)
+                fullScreenVolumePanel?.visibility = View.GONE
+                fullScreenToneControl?.requestFocus()
+                setFullScreenChromeVisible(true)
+                return true
+            }
             if (center && !fullScreenChromeVisible) {
                 setFullScreenChromeVisible(true)
                 return true
             }
-            if (center && fullScreenControls?.hasFocus() != true) {
+            if (volumePanelVisible && (center || direction) && !volumePanelHasFocus &&
+                fullScreenControls?.hasFocus() != true
+            ) {
+                setFullScreenChromeVisible(true)
+                fullScreenVolumeMinusButton?.requestFocus()
+                return true
+            }
+            if (center && fullScreenControls?.hasFocus() != true && !volumePanelHasFocus) {
                 setFullScreenChromeVisible(true)
                 fullScreenControls?.getChildAt(0)?.requestFocus()
                 return true
@@ -9223,6 +9232,19 @@ class MainActivity : AppCompatActivity() {
             if ((center || direction) && fullScreenChromeVisible) {
                 main.removeCallbacks(hideFullScreenChromeRunnable)
                 main.postDelayed(hideFullScreenChromeRunnable, 5000L)
+            }
+            if (volumePanelHasFocus && code == KeyEvent.KEYCODE_DPAD_UP) {
+                fullScreenToneControl?.requestFocus()
+                return true
+            }
+            if (volumePanelHasFocus && code == KeyEvent.KEYCODE_DPAD_DOWN) {
+                return true
+            }
+            if (volumePanelVisible && window.decorView.findFocus() === fullScreenToneControl &&
+                code == KeyEvent.KEYCODE_DPAD_DOWN
+            ) {
+                fullScreenVolumeMinusButton?.requestFocus()
+                return true
             }
         }
         if (code == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE || code == KeyEvent.KEYCODE_SPACE) {
@@ -9358,7 +9380,7 @@ class MainActivity : AppCompatActivity() {
         val resourceName = if (view.id != View.NO_ID && (view.id ushr 24) != 0) {
             runCatching { resources.getResourceName(view.id) }.getOrNull()
         } else null
-        val marker = view.contentDescription?.toString()?.takeIf { it.isNotBlank() }
+        val marker = view.focusMarker()
         val text = (view as? TextView)?.text?.toString()?.takeIf { it.isNotBlank() }
         val groupText = if (view is ViewGroup) collectFocusText(view).takeIf { it.isNotBlank() } else null
         return FocusBookmark(resourceName, marker, text, groupText)
@@ -9418,7 +9440,7 @@ class MainActivity : AppCompatActivity() {
                     runCatching { resources.getResourceName(view.id) }.getOrNull()
                 } else null
                 if (bookmark.resourceName != null && resourceName == bookmark.resourceName) return view
-                if (bookmark.marker != null && view.contentDescription?.toString() == bookmark.marker) return view
+                if (bookmark.marker != null && view.focusMarker() == bookmark.marker) return view
                 if (textMatch == null && bookmark.text != null &&
                     (view as? TextView)?.text?.toString() == bookmark.text
                 ) textMatch = view
@@ -9447,6 +9469,14 @@ class MainActivity : AppCompatActivity() {
     private fun prepareTvFocusableTree(view: View) {
         if (view.isClickable && view.visibility == View.VISIBLE && view.isEnabled) {
             TvFocusStyler.install(view)
+            if (view.contentDescription.isNullOrBlank()) {
+                val spoken = when (view) {
+                    is TextView -> view.text?.toString()?.trim().orEmpty()
+                    is ViewGroup -> view.visibleTextLabel()
+                    else -> ""
+                }
+                if (spoken.isNotEmpty()) view.contentDescription = spoken
+            }
         }
         if (view is ViewGroup) {
             for (index in 0 until view.childCount) prepareTvFocusableTree(view.getChildAt(index))

@@ -12,7 +12,7 @@ android {
         minSdk 21
         targetSdk 25
         versionCode 3
-        versionName "1.2.1"
+        versionName "1.2.2"
         ndk {
             // Package each ABI's complete IJK set; never mix individual SOs across the two sets.
             abiFilters "armeabi-v7a", "arm64-v8a"
@@ -90,5 +90,6 @@ dependencies {
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.zxing:core:3.5.3"
     implementation "com.liulishuo.okdownload:okdownload:1.0.7"
+    testImplementation "junit:junit:4.13.2"
 
 }

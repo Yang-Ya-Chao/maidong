@@ -51,9 +51,10 @@ class SingerGridAdapter(
             gravity = Gravity.TOP or Gravity.CENTER_HORIZONTAL
             isFocusable = true
             isClickable = true
-            contentDescription = "focus:singer:${singer.getOrNull(0) ?: name}"
+            setAccessibleFocus("focus:singer:${singer.getOrNull(0) ?: name}", "歌星，$name")
 
             val avatar = ImageView(context).apply {
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 scaleType = ImageView.ScaleType.CENTER_CROP
                 SingerAvatarLoader.load(this, singer.getOrNull(5), R.drawable.ic_singer_placeholder)
                 outlineProvider = object : ViewOutlineProvider() {
@@ -72,6 +73,7 @@ class SingerGridAdapter(
                 gravity = Gravity.CENTER
                 isSingleLine = true
                 ellipsize = android.text.TextUtils.TruncateAt.END
+                importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(30)).apply { topMargin = dp(4) })
 
             setOnTouchListener { view, event ->

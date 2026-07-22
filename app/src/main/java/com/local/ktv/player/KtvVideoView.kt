@@ -265,12 +265,21 @@ class KtvPlaybackEngine(context: Context) {
             val audioTracks = ijk.trackInfo.indices.filter {
                 ijk.trackInfo[it].trackType == ITrackInfo.MEDIA_TRACK_TYPE_AUDIO
             }
-            if (audioTracks.size < 2) return@runCatching false
-            val targetTrack = if (original) audioTracks[1] else audioTracks[0]
+            if (audioTracks.size < 2) {
+                Log.i(TAG, "audio track switch unavailable tracks=$audioTracks original=$original")
+                return@runCatching false
+            }
+            // 原版在没有明确轨道索引时按“第一条音轨=原唱、第二条音轨=伴唱”回退。
+            // trackInfo 还可能含有视频轨，所以使用筛选后的音轨顺序。
+            val targetTrack = if (original) audioTracks[0] else audioTracks[1]
             val selectedTrack = ijk.getSelectedTrack(ITrackInfo.MEDIA_TRACK_TYPE_AUDIO)
             if (selectedTrack != targetTrack) {
                 ijk.selectTrack(targetTrack)
             }
+            Log.i(
+                TAG,
+                "audio track switch tracks=$audioTracks selected=$selectedTrack target=$targetTrack original=$original",
+            )
             return@runCatching true
         }
         false

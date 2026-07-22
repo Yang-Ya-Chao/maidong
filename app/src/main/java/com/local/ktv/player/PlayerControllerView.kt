@@ -121,9 +121,8 @@ class PlayerControllerView @JvmOverloads constructor(
         setPadding(dp(12), dp(8), dp(12), dp(12))
         addControl("上一首") { listener?.onPrev() }
         vocalSwitch = button("原唱", ACCENT_RED, 16) {
-            originalVocal = !originalVocal
-            vocalSwitch.text = if (originalVocal) "伴唱" else "原唱"
-            listener?.onVocalSwitch(originalVocal)
+            // MainActivity 确认目标模式后会通过 setVocalMode 回写，避免按钮先翻转造成提示相反。
+            listener?.onVocalSwitch(!originalVocal)
         }.also { addView(it, LinearLayout.LayoutParams(0, dp(48), 1f)) }
         addControl("音量") { listener?.onVolume() }
         addControl("全屏") { listener?.onFullScreen() }

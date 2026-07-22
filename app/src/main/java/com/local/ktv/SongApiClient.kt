@@ -63,9 +63,9 @@ object SongApiClient {
         val result = AtomicReference<String?>()
         val latch = CountDownLatch(1)
         bridge?.getSongUrl(musicno, resolution, h265) { url -> result.set(url); latch.countDown() }
-        // JS 内部有 12s 超时，这里等 15s
+        // JS 需要覆盖主/备节点和最多 3 次设备重试；略长于桥内 180 秒总超时。
         try {
-            latch.await(23, TimeUnit.SECONDS)
+            latch.await(185, TimeUnit.SECONDS)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
         }

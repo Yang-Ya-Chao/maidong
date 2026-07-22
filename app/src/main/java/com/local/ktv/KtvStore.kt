@@ -26,9 +26,6 @@ class KtvStore {
     @JvmField var lastScoreSong = ""
     @JvmField var marqueeEnabled = true
     @JvmField var marqueeText = "欢迎使用麦动"
-    @JvmField var pubPlayEnabled = false
-    @JvmField var pubPlayInterval = 3
-    @JvmField var pubPlayMode = 2
     @JvmField var playWhileDownloading = false
     @JvmField var clearDownloadsOnBoot = false
     @JvmField var autoFullscreenSeconds = 0
@@ -37,11 +34,8 @@ class KtvStore {
     @JvmField var reserveStorageGb = 1.0
     @JvmField var floatingButtonEnabled = true
     @JvmField var songTitleSubtitleEnabled = true
-    @JvmField var pubSongOriginal = true
     @JvmField var orderedSongOriginal = false
-    @JvmField var pubVolumeMode = 0
     @JvmField var orderedVolumeMode = 0
-    @JvmField var pubVocalMode = 0
     @JvmField var orderedVocalMode = 0
     @JvmField var voiceEngineEnabled = true
     @JvmField var voiceEngineVolume = 70
@@ -81,9 +75,6 @@ class KtvStore {
             lastScoreSong = root.optString("lastScoreSong", "")
             marqueeEnabled = root.optBoolean("marqueeEnabled", true)
             marqueeText = root.optString("marqueeText", "欢迎使用麦动")
-            pubPlayEnabled = root.optBoolean("pubPlayEnabled", false)
-            pubPlayInterval = root.optInt("pubPlayInterval", 3)
-            pubPlayMode = root.optInt("pubPlayMode", 2)
             playWhileDownloading = root.optBoolean("playWhileDownloading", false)
             clearDownloadsOnBoot = root.optBoolean("clearDownloadsOnBoot", false)
             autoFullscreenSeconds = root.optInt("autoFullscreenSeconds", 0)
@@ -92,11 +83,8 @@ class KtvStore {
             reserveStorageGb = root.optDouble("reserveStorageGb", 1.0).coerceIn(0.5, 64.0)
             floatingButtonEnabled = root.optBoolean("floatingButtonEnabled", true)
             songTitleSubtitleEnabled = root.optBoolean("songTitleSubtitleEnabled", true)
-            pubSongOriginal = root.optBoolean("pubSongOriginal", true)
             orderedSongOriginal = root.optBoolean("orderedSongOriginal", false)
-            pubVolumeMode = root.optInt("pubVolumeMode", 0)
             orderedVolumeMode = root.optInt("orderedVolumeMode", 0)
-            pubVocalMode = root.optInt("pubVocalMode", 0)
             orderedVocalMode = root.optInt("orderedVocalMode", 0)
             voiceEngineEnabled = root.optBoolean("voiceEngineEnabled", true)
             voiceEngineVolume = root.optInt("voiceEngineVolume", 70)
@@ -150,9 +138,6 @@ class KtvStore {
                 put("lastScoreSong", lastScoreSong)
                 put("marqueeEnabled", marqueeEnabled)
                 put("marqueeText", marqueeText)
-                put("pubPlayEnabled", pubPlayEnabled)
-                put("pubPlayInterval", pubPlayInterval)
-                put("pubPlayMode", pubPlayMode)
                 put("playWhileDownloading", playWhileDownloading)
                 put("clearDownloadsOnBoot", clearDownloadsOnBoot)
                 put("autoFullscreenSeconds", autoFullscreenSeconds)
@@ -161,11 +146,8 @@ class KtvStore {
                 put("reserveStorageGb", reserveStorageGb)
                 put("floatingButtonEnabled", floatingButtonEnabled)
                 put("songTitleSubtitleEnabled", songTitleSubtitleEnabled)
-                put("pubSongOriginal", pubSongOriginal)
                 put("orderedSongOriginal", orderedSongOriginal)
-                put("pubVolumeMode", pubVolumeMode)
                 put("orderedVolumeMode", orderedVolumeMode)
-                put("pubVocalMode", pubVocalMode)
                 put("orderedVocalMode", orderedVocalMode)
                 put("voiceEngineEnabled", voiceEngineEnabled)
                 put("voiceEngineVolume", voiceEngineVolume)

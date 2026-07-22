@@ -15,7 +15,7 @@ import java.util.concurrent.atomic.AtomicLong
 
 object SongOkDownloadManager {
     private const val TAG = "SongDownload"
-    const val MIN_VALID_FILE_SIZE = 6L * 1024L * 1024L
+    const val MIN_VALID_FILE_SIZE = SongFileValidator.MIN_VALID_FILE_SIZE
     private const val MAX_RETRY_COUNT = 3
     private const val STALL_TIMEOUT_MS = 25_000L
 
@@ -46,12 +46,16 @@ object SongOkDownloadManager {
     @JvmStatic
     fun isDownloaded(song: Song): Boolean {
         val file = getLocalFile(song)
-        if (file.exists() && file.length() < MIN_VALID_FILE_SIZE) {
-            Log.w(TAG, "Discarding incomplete song file: ${file.absolutePath}, ${file.length()} bytes")
-            file.delete()
-            song.path = null
+        if (file.exists()) {
+            val inspection = SongFileValidator.inspect(file, SongFileValidator.requiresTransportStream(file))
+            if (!inspection.valid) {
+                Log.w(TAG, "Discarding invalid song file: ${file.absolutePath}, ${inspection.reason}")
+                SongFileValidator.forget(file)
+                file.delete()
+                song.path = null
+            }
         }
-        val downloaded = file.exists() && file.length() >= MIN_VALID_FILE_SIZE
+        val downloaded = file.exists()
         if (downloaded) {
             // Catalog rows may still contain their original cloud-songNNNN path.
             // Once the unified app directory has a verified file, it is the only
@@ -232,6 +236,22 @@ object SongOkDownloadManager {
                 }
                 downloadedFile = task.file ?: partial
             }
+            val inspection = SongFileValidator.inspect(
+                downloadedFile,
+                SongFileValidator.requiresTransportStream(target),
+            )
+            if (!inspection.valid) {
+                Log.w(TAG, "Rejecting downloaded media for ${song.title}: ${inspection.reason}")
+                SongFileValidator.forget(downloadedFile)
+                clearBrokenDownload(task, target)
+                pending.remove(key)
+                progress.remove(key)
+                val message = inspection.durationMs?.let { duration ->
+                    "服务器返回试听片段（${duration / 1000}秒），未保存也未加入已点"
+                } ?: "下载文件不是有效歌曲视频，未保存也未加入已点"
+                callback?.onDownloadFailed(song, message)
+                return
+            }
             if (target.exists() && !target.delete()) {
                 pending.remove(key)
                 progress.remove(key)
@@ -327,4 +347,5 @@ object SongOkDownloadManager {
     private fun songKey(song: Song): String = song.id?.takeIf(String::isNotEmpty)
         ?: song.filename?.takeIf(String::isNotEmpty)
         ?: song.title.orEmpty()
+
 }

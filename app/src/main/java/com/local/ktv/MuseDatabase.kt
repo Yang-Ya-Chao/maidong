@@ -193,6 +193,12 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
         pageArgs(limit, offset),
     )
 
+    fun hdSongs(offset: Int, limit: Int): MutableList<Song> = songs(
+        "$SONG_SELECT WHERE s.deleted_at IS NULL AND s.name LIKE '%(HD)%' " +
+            "$RECOMMEND_ORDER LIMIT ? OFFSET ?",
+        pageArgs(limit, offset),
+    )
+
     fun quickSongs(limit: Int): MutableList<Song> = songs(
         "$SONG_SELECT WHERE s.deleted_at IS NULL LIMIT ?",
         arrayOf(limit.toString()),
@@ -563,8 +569,13 @@ class MuseDatabase @JvmOverloads constructor(initialSourceFile: File? = null) {
 
     private fun resolveSingerImageUrl(image: String?): String? {
         val value = image?.trim()?.takeIf { it.isNotEmpty() } ?: return null
-        if (value.startsWith("http://") || value.startsWith("https://") || value.startsWith("/")) return value
-        return cdnPath + Uri.encode(value, "/")
+        if (value.startsWith("/")) return value
+        val url = if (value.startsWith("http://") || value.startsWith("https://")) {
+            value
+        } else {
+            cdnPath + Uri.encode(value, "/")
+        }
+        return if ('?' in url) url else "$url?imageView2/1/w/100/h/100/q/95!/format/webp"
     }
 
     companion object {

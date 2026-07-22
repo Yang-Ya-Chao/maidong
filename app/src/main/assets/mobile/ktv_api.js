@@ -12,7 +12,7 @@
 (function(global) {
   'use strict';
 
-  // KTV_BRIDGE_API: 2 (Android 缓存校验标记，请勿删除)
+  // KTV_BRIDGE_API: 3 (Android 缓存校验标记，请勿删除)
 
   // ─── 配置 ──────────────────────────────────────────
   const CONFIG = {
@@ -20,20 +20,17 @@
     APP_KEY: '024210cba40d4385a93e6c2d3249bfb5',
     SDK_KEY: '19042303a8374f67ae3fe1e25c97936f',
     VN:      '4.1.3.03161025',
-    HOST:    'http://e.ac19.cn',
+    VER:     '2.0',
+    // 与原 APK 抓包一致：gz.ac16.vip 为主节点，mm.kk456.top 为备用节点。
+    HOSTS:   ['http://gz.ac16.vip', 'http://mm.kk456.top'],
+    HOST:    'http://gz.ac16.vip',
     MWS:     'https://mws.cherryonline.cn',
-    RSA_PUBKEY: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAucL0oFErd7REM6TSNa3EZdN1YaOs4J1eCybLPyoQ9ru3q1HU67agC9FzhrCG/RvAQUya5iPmQ8Caed05vqcCVcyJChmkSOGQ7DVShe2rGuTMNlpoRV6UzfcraaVS++7m2K/+kSZJ8OAhhhVuqPruMjsFYpdtstAwvyZT28b+eENwzpp9UHqsooZc7FZ0H8kTbs6XMkw4nIWo+4HoPAhNLEY+xdHvwY6drF/3WDTvsaoMrs73TVQCEEHzZNIz2H/is9VLMnIyOfnfcJi9br78Fj2xHzxu3sAySBOTVLmUMxqYh/g1ox5OXGcW93HJkQLkBi42tFAEkWYlYyl93+jbbQIDAQAB',
-    XF_RANGES: ['103.236.91','223.104','180.168','112.96','116.21','111.199','120.204','121.32']
+    RSA_PUBKEY: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAucL0oFErd7REM6TSNa3EZdN1YaOs4J1eCybLPyoQ9ru3q1HU67agC9FzhrCG/RvAQUya5iPmQ8Caed05vqcCVcyJChmkSOGQ7DVShe2rGuTMNlpoRV6UzfcraaVS++7m2K/+kSZJ8OAhhhVuqPruMjsFYpdtstAwvyZT28b+eENwzpp9UHqsooZc7FZ0H8kTbs6XMkw4nIWo+4HoPAhNLEY+xdHvwY6drF/3WDTvsaoMrs73TVQCEEHzZNIz2H/is9VLMnIyOfnfcJi9br78Fj2xHzxu3sAySBOTVLmUMxqYh/g1ox5OXGcW93HJkQLkBi42tFAEkWYlYyl93+jbbQIDAQAB'
   };
 
   // ─── 工具函数 ──────────────────────────────────────
   function randomHex(n) {
     var s = ''; while (n--) s += '0123456789abcdef'[Math.random()*16|0]; return s;
-  }
-
-  function randomXF() {
-    var r = CONFIG.XF_RANGES;
-    return r[Math.random()*r.length|0] + '.' + (Math.random()*254+1|0);
   }
 
   // ─── MD5 ───────────────────────────────────────────
@@ -112,14 +109,22 @@
     return {body: value.body || '', status: Number(value.status || 0)};
   }
 
+  // 部分节点会在 JSON 前输出 PHP Deprecated HTML，从第一个 "{" 开始容错解析。
+  function parseJsonBody(body) {
+    body = String(body || '');
+    var start = body.indexOf('{');
+    if (start < 0) throw new Error('JSON object not found');
+    return JSON.parse(body.slice(start));
+  }
+
+  function isDemoUrl(url) {
+    return /(?:wb66|demo)/i.test(String(url || ''));
+  }
+
   async function httpGet(url, timeout) {
     timeout = timeout || 8000;
-    var headers = {
-      'Accept': '*/*',
-      'User-Agent': 'Dalvik/2.1.0',
-      'X-Forwarded-For': randomXF(),
-      'X-Real-IP': randomXF()
-    };
+    // 原 APK 的 native GET 抓包只带 Accept: */*，不伪造来源 IP。
+    var headers = {'Accept': '*/*'};
     if (global.android && typeof global.android.httpGet === 'function') {
       return nativeResponse(global.android.httpGet(url, JSON.stringify(headers), timeout));
     }
@@ -157,13 +162,26 @@
     options = options || {};
     this.proxy = options.proxy || '';
     this.mac = options.mac || randomHex(16);
-    this.sn = this.mac;
+    this.sn = options.sn || randomHex(16);
+    this.tokens = {};
+    // 与 test_ktv_unified.py 一致：首次设备加最多 3 次换设备重试。
+    this.maxDeviceRetries = Number.isFinite(Number(options.maxDeviceRetries))
+      ? Math.max(0, Number(options.maxDeviceRetries) | 0) : 3;
+    // 兼容旧远程脚本/调试代码读取单 token 的行为。
     this.token = '';
     this.debug = options.debug || false;
   }
 
   KtvApi.prototype = {
     _log: function(msg) { if (this.debug) console.log('[KtvApi]', msg); },
+
+    regenerateDevice: function() {
+      this.mac = randomHex(16);
+      this.sn = randomHex(16);
+      this.tokens = {};
+      this.token = '';
+      this._log('Device regenerated: ' + this.mac + '_' + this.sn);
+    },
 
     // 1. MWS Login
     mwsLogin: async function() {
@@ -178,10 +196,12 @@
         });
         var resp = await httpPost(CONFIG.MWS + '/mls-api/v1/login', body);
         if (resp.status === 200) {
-          var data = JSON.parse(resp.body);
+          var data = parseJsonBody(resp.body);
           if (data.authorized) {
             self.mac = data.device_id || self.mac;
             self.sn = self.mac;
+            self.tokens = {};
+            self.token = '';
             self._log('MWS login OK: ' + self.mac);
             return true;
           }
@@ -195,76 +215,107 @@
     },
 
     // 2. Get Auth Token
-    getToken: async function() {
+    getToken: async function(host, forceRefresh) {
       var self = this;
+      host = host || CONFIG.HOSTS[0];
+      if (!forceRefresh && self.tokens[host]) {
+        self.token = self.tokens[host];
+        return self.token;
+      }
       var ts = Math.floor(Date.now() / 1000);
       var params = 'appid=' + CONFIG.APP_ID +
         '&mac=' + self.mac + '_' + self.sn +
         '&sn=' + self.sn +
         '&time=' + ts +
-        '&ver=2.0&vn=' + CONFIG.VN;
+        '&ver=' + CONFIG.VER + '&vn=' + CONFIG.VN;
       var sign = md5(params + CONFIG.APP_KEY);
-      var url = CONFIG.HOST + '/i.php?' + params + '&sign=' + sign;
-      self._log('Getting token...');
+      var url = host + '/i.php?' + params + '&sign=' + sign;
+      self._log('Getting token: ' + host);
       try {
         var resp = await httpGet(url);
         if (resp.status === 200) {
-          var data = JSON.parse(resp.body);
+          var data = parseJsonBody(resp.body);
           if (data.code === 200) {
+            self.tokens[host] = data.token;
             self.token = data.token;
-            self._log('Token OK');
+            self._log('Token OK: ' + host);
             return self.token;
           }
         }
-        self._log('Token FAIL: ' + resp.status);
+        delete self.tokens[host];
+        self._log('Token FAIL: ' + host + ', HTTP ' + resp.status);
         return null;
       } catch(e) {
-        self._log('Token error: ' + e.message);
+        delete self.tokens[host];
+        self._log('Token error: ' + host + ', ' + e.message);
         return null;
       }
     },
 
+    clearToken: function(host) {
+      delete this.tokens[host];
+      this.token = '';
+    },
+
+    _fetchSongUrl: async function(host, musicno, token, ls, resolution, h265) {
+      var ts = Math.floor(Date.now() / 1000);
+      // 参数顺序、原始 token 中的 "=" 以及签名拼接必须与原 APK 保持一致。
+      var params = 'appid=' + CONFIG.APP_ID +
+        '&device=' + this.mac + '_' + this.sn +
+        '&ish265=' + (h265 ? '1' : '0') +
+        '&ls=' + ls +
+        '&musicno=' + musicno +
+        '&resolution=' + resolution +
+        '&sn=' + this.sn +
+        '&time=' + ts +
+        '&token=' + token;
+      var sign = md5(params + CONFIG.SDK_KEY);
+      var resp = await httpGet(host + '/music/do.php?' + params + '&sign=' + sign);
+      if (resp.status !== 200) {
+        return {code: null, data: '', httpStatus: resp.status};
+      }
+      return parseJsonBody(resp.body);
+    },
+
     // 3. Get Song Download URL
-    getSongUrl: async function(musicno, resolution, h265) {
+    getSongUrl: async function(musicno, resolution, h265, ls) {
       resolution = resolution || '720';
       h265 = !!h265;
+      ls = String(ls == null ? '1' : ls);
+      if (ls !== '0' && ls !== '1' && ls !== '2') ls = '1';
       var self = this;
-      for (var att = 0; att < 3; att++) {
-        try {
-          // token 过期重试时也要在下一轮重新获取，不能带空 token 继续请求。
-          if (!self.token && !(await self.getToken())) return null;
-          var ts = Math.floor(Date.now() / 1000);
-          var params = 'appid=' + CONFIG.APP_ID +
-            '&device=' + self.mac + '_' + self.sn +
-            '&ish265=' + (h265 ? '1' : '0') + '&ls=1' +
-            '&musicno=' + encodeURIComponent(musicno) +
-            '&resolution=' + encodeURIComponent(resolution) +
-            '&sn=' + self.sn +
-            '&time=' + ts +
-            '&token=' + self.token;
-          var sign = md5(params + CONFIG.SDK_KEY);
-          var url = CONFIG.HOST + '/music/do.php?' + params + '&sign=' + sign;
+      for (var deviceRound = 0; deviceRound <= self.maxDeviceRetries; deviceRound++) {
+        if (deviceRound > 0) self.regenerateDevice();
+        for (var hostIndex = 0; hostIndex < CONFIG.HOSTS.length; hostIndex++) {
+          var host = CONFIG.HOSTS[hostIndex];
+          self._log((hostIndex === 0 ? 'Primary' : 'Fallback') +
+            ' host, device round ' + (deviceRound + 1) + ': ' + host);
+          try {
+            var token = await self.getToken(host, false);
+            if (!token) continue;
 
-          var resp = await httpGet(url);
-          if (resp.status === 200) {
-            var data = JSON.parse(resp.body);
-            if (data.code === 200) {
-              var u = data.data || '';
-              if (u && u.indexOf('wb66.cn') === -1 && u.indexOf('http') === 0) {
-                self._log('URL OK: ' + musicno);
-                return u;
-              }
-              return u || '';
+            var data = await self._fetchSongUrl(host, musicno, token, ls, resolution, h265);
+            if (data.code === 20002) {
+              self._log('Token expired, refreshing once: ' + host);
+              self.clearToken(host);
+              token = await self.getToken(host, true);
+              if (!token) continue;
+              data = await self._fetchSongUrl(host, musicno, token, ls, resolution, h265);
             }
-            if (data.code === 20002) { self.token = ''; continue; }
+
+            if (data.code === 200) {
+              var songUrl = data.data || '';
+              if (songUrl && !isDemoUrl(songUrl) && /^https?:\/\//i.test(songUrl)) {
+                self._log('URL OK: ' + musicno + ' via ' + host);
+                return songUrl;
+              }
+              if (isDemoUrl(songUrl)) self._log('Demo URL rejected: ' + musicno);
+            } else {
+              self._log('Song URL failed: ' + host + ', code=' + data.code);
+            }
+          } catch(e) {
+            self._log('Host error: ' + host + ', ' + e.message);
           }
-          if (resp.status === 403 || resp.status === 500) {
-            await new Promise(function(r){setTimeout(r,1000+att*1000);});
-            continue;
-          }
-          return null;
-        } catch(e) {
-          if (att >= 1) return null;
         }
       }
       return null;
@@ -272,8 +323,7 @@
 
     // 4. Full init sequence
     init: async function() {
-      if (!(await this.mwsLogin())) return false;
-      if (!(await this.getToken())) return false;
+      // token 获取属于每个主/备节点请求的一部分；这里不提前绑定单一节点。
       return true;
     }
   };
@@ -281,7 +331,7 @@
   // ─── 导出 ──────────────────────────────────────────
   global.KtvApi = KtvApi;
   global.KtvApiConfig = CONFIG;
-  global.KtvBridgeApiVersion = 2;
+  global.KtvBridgeApiVersion = 3;
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = {KtvApi: KtvApi, CONFIG: CONFIG};

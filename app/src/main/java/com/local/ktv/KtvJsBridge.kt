@@ -33,6 +33,7 @@ class KtvJsBridge(context: Context) {
         private const val REMOTE_JS_URL =
             "https://gitee.com/yangyachao-X/maidong-ktv/raw/master/app/src/main/assets/mobile/ktv_api.js"
         private const val MAX_RESPONSE_BYTES = 2 * 1024 * 1024
+        private const val JS_REQUEST_TIMEOUT_MS = 180_000
     }
 
     private val appContext = context.applicationContext
@@ -117,7 +118,7 @@ class KtvJsBridge(context: Context) {
                 clearTimeout(timer);
                 android.onUrl(requestId, url || '');
               }
-              var timer = setTimeout(function() { finish(''); }, 20000);
+              var timer = setTimeout(function() { finish(''); }, $JS_REQUEST_TIMEOUT_MS);
               Promise.resolve().then(async function() {
                 if (!window.api) window.api = new window.KtvApi({debug: true});
                 if (!window._apiInitPromise) {
@@ -156,7 +157,7 @@ class KtvJsBridge(context: Context) {
         runCatching {
             file.isFile && file.length() in 1_001..500_000 &&
                 file.readText(Charsets.UTF_8).let {
-                    it.contains("KtvApi") && it.contains("KTV_BRIDGE_API: 2")
+                    it.contains("KtvApi") && it.contains("KTV_BRIDGE_API: 3")
                 }
         }.getOrDefault(false)
 
@@ -182,7 +183,7 @@ class KtvJsBridge(context: Context) {
                     val script = String(bytes, StandardCharsets.UTF_8)
                     require(
                         script.length > 1000 && script.contains("KtvApi") &&
-                            script.contains("KTV_BRIDGE_API: 2"),
+                            script.contains("KTV_BRIDGE_API: 3"),
                     ) { "Invalid or incompatible JS file" }
                     tempFile.writeText(script, Charsets.UTF_8)
                     if (!tempFile.renameTo(cacheFile)) {

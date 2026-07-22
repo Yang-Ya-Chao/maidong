@@ -46,9 +46,14 @@ class PlaylistGridAdapter(
         setBackgroundResource(R.drawable.ott_bg_rank_item_not_selected)
         isClickable = true
         isFocusable = true
-        contentDescription = "focus:playlist:${playlist.getOrNull(0) ?: playlist.getOrNull(1).orEmpty()}"
+        val name = playlist.getOrNull(1).orEmpty()
+        setAccessibleFocus(
+            "focus:playlist:${playlist.getOrNull(0) ?: name}",
+            "歌单，$name",
+        )
 
         addView(ImageView(context).apply {
+            importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
             setImageResource(R.drawable.ic_default_playlist_avatar)
             scaleType = ImageView.ScaleType.CENTER_INSIDE
             alpha = 0.9f
