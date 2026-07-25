@@ -57,6 +57,7 @@ class KtvVideoView @JvmOverloads constructor(
     fun setPlaybackVolume(left: Float, right: Float) = engine?.setVolume(left, right) ?: Unit
     fun setTone(step: Int) = engine?.setTone(step) ?: Unit
     fun selectAudioTrack(original: Boolean): Boolean = engine?.selectAudioTrack(original) == true
+    fun audioTrackCount(): Int = engine?.audioTrackCount() ?: 0
     fun selectAudioChannel(channel: Int, volume: Float) = engine?.selectAudioChannel(channel, volume) ?: Unit
     val isPlaying: Boolean get() = engine?.isPlaying == true
     val currentPosition: Int get() = engine?.currentPosition ?: 0
@@ -284,6 +285,10 @@ class KtvPlaybackEngine(context: Context) {
         }
         false
     }.getOrDefault(false)
+
+    fun audioTrackCount(): Int = runCatching {
+        ijkPlayer?.trackInfo?.count { it.trackType == ITrackInfo.MEDIA_TRACK_TYPE_AUDIO } ?: 0
+    }.getOrDefault(0)
 
     fun selectAudioChannel(channel: Int, volume: Float) {
         val safeVolume = volume.coerceIn(0f, 1f)

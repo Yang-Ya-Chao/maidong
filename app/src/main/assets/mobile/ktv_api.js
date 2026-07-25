@@ -117,8 +117,14 @@
     return JSON.parse(body.slice(start));
   }
 
+  // 匹配 demo/测试资源 URL 的多种模式:
+  //   wb66 / demo 关键字
+  //   IPv4 地址 + 非标准端口 (如 154.222.26.244:656)
+  //   纯 IP 无域名 (如 http://1.2.3.4/xxx.ts)
   function isDemoUrl(url) {
-    return /(?:wb66|demo)/i.test(String(url || ''));
+    var s = String(url || '');
+    return /(?:wb66|demo)/i.test(s) ||
+           /^https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?\//i.test(s);
   }
 
   async function httpGet(url, timeout) {

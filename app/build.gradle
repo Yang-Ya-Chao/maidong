@@ -11,8 +11,8 @@ android {
         applicationId "com.local.ktv"
         minSdk 21
         targetSdk 25
-        versionCode 3
-        versionName "1.2.2"
+        versionCode 4
+        versionName "1.2.3"
         ndk {
             // Package each ABI's complete IJK set; never mix individual SOs across the two sets.
             abiFilters "armeabi-v7a", "arm64-v8a"

@@ -146,8 +146,23 @@ class KtvJsBridge(context: Context) {
         }
     }
 
+    // JS isDemoUrl 已做第一层正则过滤; 这里再做域名白名单兜底, 防止 IP 地址 demo URL 绕过
+    private val trustedHostSuffixes = listOf(
+        "ktvsky.com", "origjoy.com", "cherryonline.cn", "ac16.vip",
+        "kk456.top", "ktvdaren.com", "j-make.cn", "r2.dev",
+    )
+
+    private fun isTrustedDownloadUrl(url: String?): Boolean {
+        if (url == null) return false
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return false
+        val host = runCatching { java.net.URI(url).host }.getOrNull() ?: return false
+        // 拒绝纯 IP 地址 (demo 服务器特征)
+        if (host.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"))) return false
+        return trustedHostSuffixes.any { host.endsWith(it) }
+    }
+
     private fun complete(requestId: String, url: String?) {
-        callbacks.remove(requestId)?.invoke(url?.takeIf { it.startsWith("http://") || it.startsWith("https://") })
+        callbacks.remove(requestId)?.invoke(url?.takeIf { isTrustedDownloadUrl(it) })
     }
 
     private fun readAssetScript(): String =

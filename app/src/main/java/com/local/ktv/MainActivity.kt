@@ -192,8 +192,11 @@ class MainActivity : AppCompatActivity() {
     private var playerController: PlayerControllerView? = null
     private var currentMediaPlayer: MediaPlayer? = null
     private var vocalPlayer: MediaPlayer? = null
+    private var embeddedVocalEngine: KtvPlaybackEngine? = null
     private var vocalPlayerPrepared = false
     private var pendingVocalPosition = 0
+    private var embeddedDualTrackMode = false
+    private var embeddedMainTrackOriginal = true
 
     /**
      * 获取当前正在播放的歌曲(供已点列表标记播放状态)。
@@ -4435,6 +4438,8 @@ class MainActivity : AppCompatActivity() {
         if (player == null) player = videoBackground
         if (song == null) return
         try {
+            // 取消仍在后台扫描的“已点播完后随机本地歌曲”请求，避免抢占新点歌曲。
+            randomLocalRequestSerial++
             playbackGeneration++
             songRetryCount = 0 // 重置重试计数
             playWhenPrepared = true
@@ -4918,6 +4923,10 @@ class MainActivity : AppCompatActivity() {
         }
         // 队列为空
         if (orderQueue!!.isEmpty()) {
+            if (fromCompletion && autoNext) {
+                playRandomLocalSong()
+                return
+            }
             playbackPreparing = false
             playWhenPrepared = false
             releaseVocalPlayer()
@@ -4938,6 +4947,8 @@ class MainActivity : AppCompatActivity() {
         // 播放下一首
         if ((!fromCompletion || autoNext) && !orderQueue.isEmpty()) {
             play(orderQueue.get(0))
+        } else if (fromCompletion && autoNext && orderQueue.isEmpty()) {
+            playRandomLocalSong()
         } else {
             playbackPreparing = false
             playWhenPrepared = false
@@ -4946,6 +4957,56 @@ class MainActivity : AppCompatActivity() {
             clearLyrics()
             updateBottomBar(null, false)
             if (status != null) status!!.setText("播放完成" + (if (orderQueue.isEmpty()) "" else "，点击播放继续"))
+        }
+    }
+
+    /**
+     * 已点队列自然播放完毕后，从本机所有有效歌曲中随机续播。
+     * 随机歌曲不写入已点列表；用户此时点歌会立即取消本次随机请求并优先播放已点歌曲。
+     */
+    private fun playRandomLocalSong() {
+        val previousSongId = currentSong?.let(::stableId) ?: lastRandomLocalSongId
+        val requestSerial = ++randomLocalRequestSerial
+        playbackPreparing = true
+        playWhenPrepared = true
+        releaseVocalPlayer()
+        currentSong = null
+        clearLyrics()
+        updateBottomBar(null, false)
+        status?.text = "已点播放完成，正在随机本地歌曲..."
+        persistRuntimeState()
+
+        io.execute {
+            val localSongs = localSongInventory()
+            library.scanLocal().forEach { song ->
+                val file = song.path?.let(::File) ?: return@forEach
+                if (SongFileValidator.inspect(
+                        file,
+                        SongFileValidator.requiresTransportStream(file),
+                    ).valid
+                ) {
+                    localSongs.putIfAbsent(stableId(song), song)
+                }
+            }
+            val allLocalSongs = localSongs.values.toList()
+            val alternatives = allLocalSongs.filter { stableId(it) != previousSongId }
+            val selected = (if (alternatives.isNotEmpty()) alternatives else allLocalSongs).randomOrNull()
+            main.post {
+                if (requestSerial != randomLocalRequestSerial || orderQueue!!.isNotEmpty() || currentSong != null) {
+                    return@post
+                }
+                if (selected != null) {
+                    lastRandomLocalSongId = stableId(selected)
+                    status?.text = "随机播放：${selected.title}"
+                    play(selected)
+                } else {
+                    playbackPreparing = false
+                    playWhenPrepared = false
+                    updateBottomBar(null, false)
+                    status?.text = "播放完成，本地暂无可播放歌曲"
+                    persistRuntimeState()
+                }
+            }
         }
     }
 
@@ -4998,19 +5059,26 @@ class MainActivity : AppCompatActivity() {
             currentSong,
             player?.currentPosition ?: 0
         )
+        val embedded = !external && "自动" == vocalChannelMode &&
+            prepareEmbeddedDualTrackVocal(currentSong, player?.currentPosition ?: 0)
         var trackSelected = false
         var channelApplied = false
-        if (!external && "自动" == vocalChannelMode) {
+        if (!external && !embedded && "自动" == vocalChannelMode) {
             trackSelected = applySelectedAudioTrack()
             if (!trackSelected && currentSong != null && currentSong!!.accomp > 0) {
                 channelApplied = applyChannelByAccomp()
             }
         }
-        val volume =
-            if (external || "静音练唱" == singMode) 0f else max(0f, min(1f, musicVolume / 100f))
+        val alternateTrackActive = embedded && originalVocal != embeddedMainTrackOriginal
+        val volume = if (external || alternateTrackActive || "静音练唱" == singMode) {
+            0f
+        } else {
+            max(0f, min(1f, musicVolume / 100f))
+        }
         try {
             when {
                 external || "静音练唱" == singMode -> videoPlayer.setPlaybackVolume(0f, 0f)
+                embedded -> videoPlayer.setPlaybackVolume(volume, volume)
                 trackSelected -> videoPlayer.selectAudioChannel(IjkMediaPlayer.AUDIO_CHANNEL_STEREO, volume)
                 "自动" != vocalChannelMode -> {
                     videoPlayer.selectAudioChannel(selectedChannelForMode(), volume)
@@ -5022,6 +5090,15 @@ class MainActivity : AppCompatActivity() {
         } catch (ignored: Exception) {
         }
         applyVocalVolume()
+        if (embedded && vocalPlayerPrepared) {
+            val mainPosition = videoPlayer.currentPosition
+            val alternatePosition = embeddedVocalEngine?.currentPosition ?: mainPosition
+            Log.i(
+                TAG,
+                "Embedded seamless switch original=$originalVocal main=$mainPosition " +
+                    "alternate=$alternatePosition drift=${alternatePosition - mainPosition}",
+            )
+        }
     }
 
     /**
@@ -5080,6 +5157,16 @@ class MainActivity : AppCompatActivity() {
     private fun prepareExternalVocal(song: Song?, positionMs: Int): Boolean {
         val path = selectedVocalPath(song)
         if (!hasUrl(path)) {
+            if (embeddedDualTrackMode && embeddedVocalEngine != null) {
+                pendingVocalPosition = adjustedAudioPosition(positionMs)
+                if (vocalPlayerPrepared) runCatching {
+                    val drift = kotlin.math.abs(embeddedVocalEngine!!.currentPosition - pendingVocalPosition)
+                    if (drift > 300 && originalVocal == embeddedMainTrackOriginal) {
+                        embeddedVocalEngine!!.seekTo(pendingVocalPosition)
+                    }
+                }
+                return false
+            }
             releaseVocalPlayer()
             return false
         }
@@ -5096,6 +5183,7 @@ class MainActivity : AppCompatActivity() {
         }
         releaseVocalPlayer()
         try {
+            embeddedDualTrackMode = false
             val candidate = MediaPlayer()
             vocalPlayer = candidate
             vocalPlayerPrepared = false
@@ -5127,6 +5215,82 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 双音轨 TS 使用一个常驻的静音副播放器预解码另一条音轨。切换时只交叉调整两个
+     * 播放器的音量，不再对主 IJKPlayer 调用 selectTrack，避免 AudioTrack 被销毁重建。
+     */
+    private fun prepareEmbeddedDualTrackVocal(song: Song?, positionMs: Int): Boolean {
+        val videoPlayer = player ?: return false
+        val path = song?.path?.takeIf { it.isNotBlank() } ?: return false
+        if (videoPlayer.audioTrackCount() < 2 || !File(path).isFile) {
+            if (embeddedDualTrackMode) releaseVocalPlayer()
+            return false
+        }
+        if (embeddedDualTrackMode && currentVocalPath == path && embeddedVocalEngine != null) {
+            if (!vocalPlayerPrepared && embeddedMainTrackOriginal != originalVocal) {
+                releaseVocalPlayer()
+            } else {
+                applyVocalVolume()
+                return vocalPlayerPrepared
+            }
+        }
+
+        releaseVocalPlayer()
+        return try {
+            embeddedDualTrackMode = true
+            embeddedMainTrackOriginal = originalVocal
+            pendingVocalPosition = adjustedAudioPosition(positionMs)
+            currentVocalPath = path
+            val candidate = KtvPlaybackEngine(this)
+            embeddedVocalEngine = candidate
+            vocalPlayerPrepared = false
+            candidate.setVolume(0f, 0f)
+            candidate.setOnCompletionListener(null)
+            candidate.setOnPreparedListener {
+                if (embeddedVocalEngine !== candidate || currentVocalPath != path || !embeddedDualTrackMode) {
+                    candidate.release()
+                    return@setOnPreparedListener
+                }
+                if (candidate.audioTrackCount() < 2 ||
+                    !candidate.selectAudioTrack(!embeddedMainTrackOriginal)
+                ) {
+                    Log.w(
+                        TAG,
+                        "Embedded seamless vocal unavailable: tracks=${candidate.audioTrackCount()} path=$path",
+                    )
+                    releaseVocalPlayer()
+                    return@setOnPreparedListener
+                }
+                vocalPlayerPrepared = true
+                // The secondary decoder starts roughly one audio buffer behind the visible player.
+                // Give it a small head start once, while it is still muted, so later volume-only
+                // switches land on the same presentation timestamp.
+                val synchronizedPosition = adjustedAudioPosition(
+                    (player?.currentPosition ?: pendingVocalPosition) + 120,
+                )
+                if (synchronizedPosition > 0) candidate.seekTo(synchronizedPosition)
+                applyVocalVolume()
+                if (playWhenPrepared) startVocalIfReady() else pauseVocalIfReady()
+                Log.i(
+                    TAG,
+                    "Embedded seamless vocal ready tracks=${candidate.audioTrackCount()} " +
+                        "mainOriginal=$embeddedMainTrackOriginal path=$path",
+                )
+            }
+            candidate.setOnErrorListener { _, what, extra ->
+                Log.w(TAG, "Embedded seamless vocal failed what=$what extra=$extra path=$path")
+                if (embeddedVocalEngine === candidate) releaseVocalPlayer()
+                true
+            }
+            candidate.setVideoUri(Uri.fromFile(File(path)))
+            false
+        } catch (e: Exception) {
+            Log.w(TAG, "Embedded seamless vocal prepare failed path=$path", e)
+            releaseVocalPlayer()
+            false
+        }
+    }
+
     private fun selectedVocalPath(song: Song?): String {
         if (song == null) return ""
         val direct = if (originalVocal) song.originalPath else song.accompanyPath
@@ -5137,31 +5301,50 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyVocalVolume() {
-        if (vocalPlayer == null) return
-        val volume = if ("静音练唱" == singMode) 0f else max(0f, min(1f, musicVolume / 100f))
+        if (vocalPlayer == null && embeddedVocalEngine == null) return
+        val alternateTrackActive = embeddedDualTrackMode && originalVocal != embeddedMainTrackOriginal
+        val volume = if ("静音练唱" == singMode || embeddedDualTrackMode && !alternateTrackActive) {
+            0f
+        } else {
+            max(0f, min(1f, musicVolume / 100f))
+        }
         try {
-            vocalPlayer!!.setVolume(volume, volume)
+            if (embeddedDualTrackMode) {
+                embeddedVocalEngine?.setVolume(volume, volume)
+            } else {
+                vocalPlayer?.setVolume(volume, volume)
+            }
         } catch (ignored: Exception) {
         }
     }
 
     private fun startVocalIfReady() {
-        if (vocalPlayer == null || !vocalPlayerPrepared) return
+        if (!vocalPlayerPrepared) return
         try {
-            if (!vocalPlayer!!.isPlaying()) vocalPlayer!!.start()
+            if (embeddedDualTrackMode) {
+                if (embeddedVocalEngine?.isPlaying != true) embeddedVocalEngine?.start()
+            } else if (vocalPlayer?.isPlaying != true) {
+                vocalPlayer?.start()
+            }
         } catch (ignored: Exception) {
         }
     }
 
     private fun pauseVocalIfReady() {
-        if (vocalPlayer == null || !vocalPlayerPrepared) return
+        if (!vocalPlayerPrepared) return
         try {
-            if (vocalPlayer!!.isPlaying()) vocalPlayer!!.pause()
+            if (embeddedDualTrackMode) {
+                if (embeddedVocalEngine?.isPlaying == true) embeddedVocalEngine?.pause()
+            } else if (vocalPlayer?.isPlaying == true) {
+                vocalPlayer?.pause()
+            }
         } catch (ignored: Exception) {
         }
     }
 
     private fun releaseVocalPlayer() {
+        embeddedVocalEngine?.release()
+        embeddedVocalEngine = null
         if (vocalPlayer != null) {
             try {
                 vocalPlayer!!.release()
@@ -5170,6 +5353,8 @@ class MainActivity : AppCompatActivity() {
         }
         vocalPlayer = null
         vocalPlayerPrepared = false
+        embeddedDualTrackMode = false
+        embeddedMainTrackOriginal = true
         pendingVocalPosition = 0
         currentVocalPath = ""
     }
@@ -5876,6 +6061,8 @@ class MainActivity : AppCompatActivity() {
     private var fullScreenVolumePlusButton: TextView? = null
     private var fullScreenVolumeMuteButton: TextView? = null
     private var fullScreenPreviousVolume = 70
+    private var randomLocalRequestSerial = 0L
+    private var lastRandomLocalSongId: String? = null
     private var fullScreenChromeVisible = false
     private val hideFullScreenVolumeIndicatorRunnable = Runnable {
         fullScreenVolumeIndicator?.animate()?.alpha(0f)?.setDuration(220L)?.withEndAction {

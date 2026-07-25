@@ -72,17 +72,29 @@ object SongApiClient {
         return result.get() ?: fetchFromDb(musicno)
     }
 
-    /** DB cloud_url fallback */
+    /** DB cloud_url fallback — 必须通过 demo 检测才能使用 */
     private fun fetchFromDb(musicno: String): String? {
         try {
             val db = MuseDatabase()
             if (db.open()) {
                 val url = db.getCloudUrl(musicno)
                 db.close()
-                return url
+                // DB 中的 cloud_url 可能也是 demo 地址, 做 URL 基本校验
+                if (url != null && !isLikelyDemoUrl(url)) return url
             }
         } catch (_: Exception) {}
         return null
+    }
+
+    /** 快速判断是否为 demo URL (不含 JS 的完整逻辑, 仅做 IP+端口 硬特征兜底) */
+    private fun isLikelyDemoUrl(url: String): Boolean {
+        val host = runCatching { java.net.URI(url).host }.getOrNull() ?: return true
+        // 纯 IP 地址 + 非 80/443 端口 → 高概率 demo
+        if (host.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"))) {
+            val port = runCatching { java.net.URI(url).port }.getOrDefault(-1)
+            if (port > 0 && port != 80 && port != 443) return true
+        }
+        return false
     }
 
     @JvmStatic
