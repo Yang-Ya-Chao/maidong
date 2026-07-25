@@ -213,7 +213,27 @@ class MainActivity : AppCompatActivity() {
         override fun run() {
             updateFullScreenProgress()
             updateLyricView()
+            syncEmbeddedVocalPosition()
             main.postDelayed(this, 500)
+        }
+    }
+
+    /**
+     * 双音轨模式下, 副播放器静音时保持与主播放器位置同步。
+     * 这样用户切歌时两个播放器已对齐, 不会出现歌词对不上音频的问题。
+     */
+    private fun syncEmbeddedVocalPosition() {
+        if (!embeddedDualTrackMode || !vocalPlayerPrepared || embeddedVocalEngine == null) return
+        if (player == null) return
+        // 只在副播放器不发声时同步 (发声时 seek 会产生断音)
+        val alternateActive = originalVocal != embeddedMainTrackOriginal
+        if (alternateActive) return
+        val mainPos = player!!.currentPosition
+        val embedPos = embeddedVocalEngine!!.currentPosition
+        val drift = kotlin.math.abs(mainPos - embedPos)
+        if (drift > 300) {
+            Log.i(TAG, "Syncing embedded vocal: drift=${drift}ms main=$mainPos embed=$embedPos")
+            embeddedVocalEngine!!.seekTo(mainPos)
         }
     }
     private var search: EditText? = null
