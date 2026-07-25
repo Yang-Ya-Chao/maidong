@@ -118,13 +118,22 @@
   }
 
   // 匹配 demo/测试资源 URL 的多种模式:
-  //   wb66 / demo 关键字
-  //   IPv4 地址 + 非标准端口 (如 154.222.26.244:656)
-  //   纯 IP 无域名 (如 http://1.2.3.4/xxx.ts)
-  function isDemoUrl(url) {
+  //   1) wb66 / demo 关键字
+  //   2) IPv4 地址 (如 http://154.222.26.244:656/722.ts)
+  //   3) Cloudflare R2 demo bucket (pub-*.r2.dev/ss/ 通用测试文件)
+  //   4) 文件名与 musicno 不匹配的短数字通用文件 (如 /722.ts, /689.ts)
+  function isDemoUrl(url, musicno) {
     var s = String(url || '');
-    return /(?:wb66|demo)/i.test(s) ||
-           /^https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?\//i.test(s);
+    if (/(?:wb66|demo)/i.test(s)) return true;
+    if (/^https?:\/\/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(?::\d+)?\//i.test(s)) return true;
+    // R2 demo bucket: pub-*.r2.dev/ss/ 通用测试资源
+    if (/pub-[a-z0-9]+\.r2\.dev\/ss\//i.test(s)) return true;
+    // 文件名是纯短数字但不对应 musicno (如 /722.ts、/689.ts)
+    if (musicno) {
+      var m = s.match(/\/(\d{1,6})\.ts(?:\?|$)/);
+      if (m && m[1] !== String(musicno)) return true;
+    }
+    return false;
   }
 
   async function httpGet(url, timeout) {
@@ -284,11 +293,13 @@
     },
 
     // 3. Get Song Download URL
-    getSongUrl: async function(musicno, resolution, h265, ls) {
+    // mm.kk456.top 代理有多个上游节点, (musicno+ls+device) 的哈希决定路由;
+    // 部分节点有真源, 部分返回 demo。这里对每个 host/device 组合尝试 ls=0/1/2,
+    // 只要命中真源就立即返回, 避免做事后 demo 检测再丢弃。
+    getSongUrl: async function(musicno, resolution, h265, _preferredLs) {
       resolution = resolution || '720';
       h265 = !!h265;
-      ls = String(ls == null ? '1' : ls);
-      if (ls !== '0' && ls !== '1' && ls !== '2') ls = '1';
+      var preferredLs = String(_preferredLs == null ? '1' : _preferredLs);
       var self = this;
       for (var deviceRound = 0; deviceRound <= self.maxDeviceRetries; deviceRound++) {
         if (deviceRound > 0) self.regenerateDevice();
@@ -296,32 +307,43 @@
           var host = CONFIG.HOSTS[hostIndex];
           self._log((hostIndex === 0 ? 'Primary' : 'Fallback') +
             ' host, device round ' + (deviceRound + 1) + ': ' + host);
-          try {
-            var token = await self.getToken(host, false);
-            if (!token) continue;
 
-            var data = await self._fetchSongUrl(host, musicno, token, ls, resolution, h265);
-            if (data.code === 20002) {
-              self._log('Token expired, refreshing once: ' + host);
-              self.clearToken(host);
-              token = await self.getToken(host, true);
-              if (!token) continue;
-              data = await self._fetchSongUrl(host, musicno, token, ls, resolution, h265);
-            }
+          var token = await self.getToken(host, false);
+          if (!token) continue;
 
-            if (data.code === 200) {
-              var songUrl = data.data || '';
-              if (songUrl && !isDemoUrl(songUrl) && /^https?:\/\//i.test(songUrl)) {
-                self._log('URL OK: ' + musicno + ' via ' + host);
-                return songUrl;
+          // 尝试所有 ls 值, 优先用传入的, 然后轮询其他值
+          var lsValues = [preferredLs];
+          if (preferredLs !== '0') lsValues.push('0');
+          if (preferredLs !== '1') lsValues.push('1');
+          if (preferredLs !== '2') lsValues.push('2');
+
+          for (var lsi = 0; lsi < lsValues.length; lsi++) {
+            var ls = lsValues[lsi];
+            try {
+              var data = await self._fetchSongUrl(host, musicno, token, ls, resolution, h265);
+              if (data.code === 20002) {
+                self._log('Token expired, refreshing once: ' + host);
+                self.clearToken(host);
+                token = await self.getToken(host, true);
+                if (!token) continue;
+                data = await self._fetchSongUrl(host, musicno, token, ls, resolution, h265);
               }
-              if (isDemoUrl(songUrl)) self._log('Demo URL rejected: ' + musicno);
-            } else {
-              self._log('Song URL failed: ' + host + ', code=' + data.code);
+
+              if (data.code === 200) {
+                var songUrl = data.data || '';
+                if (songUrl && !isDemoUrl(songUrl, musicno) && /^https?:\/\//i.test(songUrl)) {
+                  self._log('URL OK: ' + musicno + ' ls=' + ls + ' via ' + host);
+                  return songUrl;
+                }
+                if (isDemoUrl(songUrl, musicno))
+                  self._log('Demo (ls=' + ls + '): retry next ls value');
+                // 不是 demo 但也无效 (空/格式不对) → 继续试下一个 ls
+              }
+            } catch(e) {
+              self._log('Failed ls=' + ls + ': ' + host + ', ' + e.message);
             }
-          } catch(e) {
-            self._log('Host error: ' + host + ', ' + e.message);
           }
+          self._log('All ls values exhausted for ' + host);
         }
       }
       return null;

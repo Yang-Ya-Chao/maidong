@@ -86,14 +86,13 @@ object SongApiClient {
         return null
     }
 
-    /** 快速判断是否为 demo URL (不含 JS 的完整逻辑, 仅做 IP+端口 硬特征兜底) */
+    /** 快速判断是否为 demo URL (不含 JS 的完整逻辑, 仅做硬特征兜底) */
     private fun isLikelyDemoUrl(url: String): Boolean {
         val host = runCatching { java.net.URI(url).host }.getOrNull() ?: return true
-        // 纯 IP 地址 + 非 80/443 端口 → 高概率 demo
-        if (host.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"))) {
-            val port = runCatching { java.net.URI(url).port }.getOrDefault(-1)
-            if (port > 0 && port != 80 && port != 443) return true
-        }
+        // 纯 IP 地址 → 高概率 demo
+        if (host.matches(Regex("^\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}$"))) return true
+        // Cloudflare R2 demo bucket (pub-*.r2.dev)
+        if (host.matches(Regex("^pub-[a-z0-9]+\\.r2\\.dev$"))) return true
         return false
     }
 
