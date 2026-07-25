@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import androidx.core.content.FileProvider
 import org.json.JSONObject
 import java.io.File
@@ -14,11 +13,8 @@ import java.net.URL
 
 /** Gitee Release based in-app updater. */
 object AppUpdateManager {
-    const val UNKNOWN_SOURCES_REQUEST_CODE = 0x4B54
     private const val LATEST_RELEASE_API =
         "https://gitee.com/api/v5/repos/yangyachao-X/maidong-ktv/releases/latest"
-    private const val PREFS = "app_updater"
-    private const val PENDING_APK = "pending_apk"
 
     data class Release(
         val version: String,
@@ -112,42 +108,24 @@ object AppUpdateManager {
         }, "gitee-update-download").start()
     }
 
+    /**
+     * 直接启动系统 Package Installer 安装 APK。
+     *
+     * Android 8+ 不再手动跳转 Settings 权限列表 (TV 遥控器难以操作),
+     * 而是把 APK URI 交给系统安装器; 若缺少"允许安装未知应用"权限,
+     * 系统安装器会自动弹出授权对话框, 用户确认后即可继续安装。
+     */
     fun install(activity: Activity, apk: File) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O &&
-            !activity.packageManager.canRequestPackageInstalls()
-        ) {
-            activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE)
-                .edit().putString(PENDING_APK, apk.absolutePath).apply()
-            activity.startActivityForResult(
-                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${activity.packageName}")),
-                UNKNOWN_SOURCES_REQUEST_CODE,
-            )
-            return
-        }
-        activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).edit().remove(PENDING_APK).apply()
         val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", apk)
-        activity.startActivity(
-            Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, "application/vnd.android.package-archive")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
-                clipData = android.content.ClipData.newRawUri("APK", uri)
-            },
-        )
-    }
-
-    fun resumePendingInstall(activity: Activity): Boolean {
-        val path = activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).getString(PENDING_APK, null)
-            ?: return false
-        val apk = File(path)
-        if (!apk.isFile) {
-            activity.getSharedPreferences(PREFS, Activity.MODE_PRIVATE).edit().remove(PENDING_APK).apply()
-            return false
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, "application/vnd.android.package-archive")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                // Android 7+ 允许系统安装器直接拿到 URI 权限, 无需 NEW_TASK
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
         }
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || activity.packageManager.canRequestPackageInstalls()) {
-            install(activity, apk)
-            return true
-        }
-        return false
+        activity.startActivity(intent)
     }
 
     internal fun compareVersions(left: String, right: String): Int {

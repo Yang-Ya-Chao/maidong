@@ -508,16 +508,11 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Some TV firmwares report the unknown-source permission a little after Settings closes.
-        main.postDelayed({ AppUpdateManager.resumePendingInstall(this) }, 350L)
     }
 
     @Deprecated("Deprecated in Android")
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == AppUpdateManager.UNKNOWN_SOURCES_REQUEST_CODE) {
-            main.postDelayed({ AppUpdateManager.resumePendingInstall(this) }, 350L)
-        }
     }
 
     override fun onDestroy() {
