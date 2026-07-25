@@ -4794,6 +4794,7 @@ class MainActivity : AppCompatActivity() {
                         ?: DownloadTask(song).also { downloads.add(it) }
                     task.state = "下载中"
                     task.progress = 0
+                    refreshSongAdapter()
                     if (currentTabIndex == 6) loadDownloadedList()
                     if (currentSong?.equals(song) == true && playbackPreparing) updateDownloadProgress(song, 0)
                 })
@@ -4829,6 +4830,7 @@ class MainActivity : AppCompatActivity() {
                 main.post(Runnable {
                     downloads.removeAll { stableId(it.song) == stableId(song) }
                     song.path = localPath
+                    refreshSongAdapter()
                     val shouldAddToQueue = pendingQueueSongIds.remove(stableId(song))
                     Log.i(
                         TAG,
@@ -4859,6 +4861,7 @@ class MainActivity : AppCompatActivity() {
                             break
                         }
                     }
+                    refreshSongAdapter()
                     if (currentTabIndex == 6) loadDownloadedList()
                     if (currentSong?.equals(song) == true) hideDownloadProgress()
                     if (wasPendingQueue) toast("下载失败，未加入已点：${song.title}")
@@ -8864,6 +8867,15 @@ class MainActivity : AppCompatActivity() {
             currentTabIndex == 3 -> loadWordCounts()
             currentTabIndex == 7 -> loadFavorites()
             else -> loadBrowsePage()
+        }
+    }
+
+    /**
+     * 轻量刷新当前歌曲列表 Adapter (不重建), 用于下载状态变更后即时更新 UI。
+     */
+    private fun refreshSongAdapter() {
+        modernSongAdapter?.let { adapter ->
+            if (songList?.adapter === adapter) adapter.notifyDataSetChanged()
         }
     }
 
