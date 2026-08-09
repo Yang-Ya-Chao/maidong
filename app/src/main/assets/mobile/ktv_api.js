@@ -21,9 +21,9 @@
     SDK_KEY: '19042303a8374f67ae3fe1e25c97936f',
     VN:      '4.1.3.03161025',
     VER:     '2.0',
-    // 与原 APK 抓包一致：gz.ac16.vip 为主节点，mm.kk456.top 为备用节点。
-    HOSTS:   ['http://gz.ac16.vip', 'http://mm.kk456.top'],
-    HOST:    'http://gz.ac16.vip',
+    // 当前线路优先级：mm.kk456.top 为主节点，gz.ac16.vip 为备用节点。
+    HOSTS:   ['http://mm.kk456.top', 'http://gz.ac16.vip'],
+    HOST:    'http://mm.kk456.top',
     MWS:     'https://mws.cherryonline.cn',
     RSA_PUBKEY: 'MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAucL0oFErd7REM6TSNa3EZdN1YaOs4J1eCybLPyoQ9ru3q1HU67agC9FzhrCG/RvAQUya5iPmQ8Caed05vqcCVcyJChmkSOGQ7DVShe2rGuTMNlpoRV6UzfcraaVS++7m2K/+kSZJ8OAhhhVuqPruMjsFYpdtstAwvyZT28b+eENwzpp9UHqsooZc7FZ0H8kTbs6XMkw4nIWo+4HoPAhNLEY+xdHvwY6drF/3WDTvsaoMrs73TVQCEEHzZNIz2H/is9VLMnIyOfnfcJi9br78Fj2xHzxu3sAySBOTVLmUMxqYh/g1ox5OXGcW93HJkQLkBi42tFAEkWYlYyl93+jbbQIDAQAB'
   };
