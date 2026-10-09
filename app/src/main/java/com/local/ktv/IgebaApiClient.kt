@@ -6,6 +6,7 @@ import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
+import kotlin.random.Random
 
 /** 表单协议直连，不加载旧 JS、设备模拟或旧 CDN 地址。 */
 object IgebaApiClient {
@@ -14,10 +15,7 @@ object IgebaApiClient {
 
     /** 只读取用户自己正常会话提供的身份；缺省为官方匿名值。 */
     fun userId(): Long {
-        return runCatching {
-            if (!AppPaths.igebaSessionFile.isFile) return@runCatching 0L
-            JSONObject(AppPaths.igebaSessionFile.readText()).optLong("UserId", 0L).coerceAtLeast(0L)
-        }.getOrDefault(0L)
+        return Random.nextLong(100_000L, 1_000_000L)
     }
 
     fun post(command: String, params: JSONObject, address: Boolean = false): JSONObject {
