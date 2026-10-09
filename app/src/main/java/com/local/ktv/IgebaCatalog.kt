@@ -26,7 +26,6 @@ class IgebaCatalog {
 
     fun songCount(): Int = count("SELECT COUNT(*) FROM source_songs")
     fun singerCount(): Int = count("SELECT COUNT(*) FROM source_singers")
-    fun getCloudUrl(musicno: String): String? = null
 
     private fun textCondition(keyword: String?, args: MutableList<String>, singer: Boolean = false): String {
         val value = keyword?.trim().orEmpty()

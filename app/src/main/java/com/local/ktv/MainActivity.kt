@@ -4664,15 +4664,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 从 CDN 下载歌曲文件。
-     * 使用 global_confs 表中的 cdn_path 作为基础 URL。
-     * 
-     * @param song 要下载的歌曲
-     */
-    private fun downloadFromCdn(song: Song) {
-        downloadSong(song)
-    }
-    /**
      * 使用 SongOkDownloadManager 下载歌曲到本地。
      */
     private fun downloadSong(song: Song, extraCallback: DownloadCallback? = null, storageChecked: Boolean = false) {
@@ -4790,8 +4781,6 @@ class MainActivity : AppCompatActivity() {
      * @param song 要检查的歌曲
      * @return true 表示正在下载
      */
-    /** 从 Song 中提取云端歌曲 TID (filename 格式: "7678785.ts" / "7586669.ls" → "7678785" / "7586669")  */
-    private fun extractTid(song: Song): String? = song.sourceSongNumber
     private fun isDownloading(song: Song): Boolean {
         if (SongOkDownloadManager.isDownloading(song)) {
             return true
@@ -5104,7 +5093,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 双音轨 TS 使用一个常驻的静音副播放器预解码另一条音轨。切换时只交叉调整两个
-     * 播放器的音量，不再对主 IJKPlayer 调用 selectTrack，避免 AudioTrack 被销毁重建。
+     * 播放器音量，减少原伴唱切换时的音频输出重建。
      */
     private fun prepareEmbeddedDualTrackVocal(song: Song?, positionMs: Int): Boolean {
         val videoPlayer = player ?: return false

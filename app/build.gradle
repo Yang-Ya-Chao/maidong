@@ -17,10 +17,6 @@ android {
             // 新播放器使用系统解码，不打包旧 IJK 原生库。
             abiFilters "armeabi-v7a", "arm64-v8a"
         }
-        def manifestUrl = project.findProperty("GITEE_DATABASE_MANIFEST_URL") ?: ""
-        buildConfigField "String", "GITEE_DATABASE_MANIFEST_URL", "\"${manifestUrl}\""
-        def giteeToken = project.findProperty("GITEE_DATABASE_TOKEN") ?: ""
-        buildConfigField "String", "GITEE_DATABASE_TOKEN", "\"${giteeToken}\""
 
     }
 
@@ -47,7 +43,6 @@ android {
         }
     }
 
-    sourceSets { main { jniLibs.srcDirs = [] } }
 
     // 支持 .ts 视频文件(aapt 不压缩这些文件以避免 SoundPool/MediaPlayer 问题)
     androidResources {

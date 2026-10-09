@@ -12,13 +12,10 @@ app/release/
 captures/
 **/captures/
 *.xml.bak
-database_publish/muse.db
-database_publish/muse.db.reassembled
 gradle.properties
 
 
 # Temp files
-.tmp_muse.db
 tools/__pycache__/
 **/__history/
 *.jks
