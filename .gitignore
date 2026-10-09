@@ -20,3 +20,4 @@ gradle.properties
 # Temp files
 .tmp_muse.db
 tools/__pycache__/
+**/__history/

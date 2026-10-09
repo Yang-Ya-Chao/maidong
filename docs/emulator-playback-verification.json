@@ -1,0 +1,167 @@
+{
+  "date": "2026-10-09",
+  "device": {
+    "serial": "127.0.0.1:62025",
+    "android": 28
+  },
+  "package": "com.local.ktv.qa",
+  "apk": {
+    "path": "D:\\android\\ktv-igeba-integration\\app\\build\\outputs\\apk\\debug\\app-debug.apk",
+    "type": "apk",
+    "module": "app",
+    "variant": "debug",
+    "size_bytes": 48405615,
+    "sha256": "a20bad46d7c4971e37ef1823f9527d0a7ce58346dcf4ebc663dca364495b998b"
+  },
+  "unit_tests": {
+    "tests": 18,
+    "failures": 0,
+    "errors": 0
+  },
+  "samples": [
+    {
+      "song_number": "20051208",
+      "title": "山风山风等等我",
+      "download_complete": true,
+      "download_evidence": "10-09 16:38:58.319 PID 3009 downloadComplete; initial build before USB cache-path additions",
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "20046950",
+      "title": "搀扶",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "20005121",
+      "title": "红尘情歌",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "10033094",
+      "title": "西海情歌",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "10016744",
+      "title": "后来",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "20050902",
+      "title": "山歌追上云朵",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "20051274",
+      "title": "远方的爱人",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "20021827",
+      "title": "成都",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "20046407",
+      "title": "情罪",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    },
+    {
+      "song_number": "00522920",
+      "title": "月亮代表我的心",
+      "download_complete": true,
+      "player_prepared": true,
+      "two_audio_tracks": true,
+      "played_to_end": false
+    }
+  ],
+  "extra_sample": {
+    "song_number": "01113666",
+    "title": "歌唱祖国",
+    "download_complete": false,
+    "error": "媒体服务器 HTTP 403: Forbidden:Url Expired",
+    "address_refresh_once": true
+  },
+  "limitations": [
+    "完整下载与播放器准备成功不能证明每首均从头播放到尾",
+    "原伴唱切换已记录，但实际听感与两轨语义尚未验收",
+    "实体U盘容量、拔插、授权和读写尚未验证",
+    "旧版本数据库与旧缓存迁移尚未用升级夹具在模拟器验证"
+  ],
+  "evidence": [
+    "10-09 16:38:58.521  3009  3009 I MainActivity: onPrepared song=igeba:song:20051208 generation=1 play=true",
+    "10-09 16:38:58.623  3009  3009 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220051208.mkv",
+    "10-09 16:39:52.636  3009  3009 I MainActivity: Embedded seamless switch original=true main=52878 alternate=52900 drift=22",
+    "10-09 16:39:54.170  3009  3009 I MainActivity: Embedded seamless switch original=false main=54415 alternate=54436 drift=21",
+    "10-09 16:46:49.489 10036 10036 I MainActivity: playLocalFile song=igeba:song:20051208 generation=1 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220051208.mkv",
+    "10-09 16:46:49.655 10036 10036 I MainActivity: onPrepared song=igeba:song:20051208 generation=1 play=true",
+    "10-09 16:46:49.716 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220051208.mkv",
+    "10-09 16:48:00.884 10036 10036 I MainActivity: downloadComplete song=igeba:song:20021827 pendingQueue=true current=igeba:song:20051208 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220021827.mkv",
+    "10-09 16:48:54.431 10036 10036 I MainActivity: playLocalFile song=igeba:song:20021827 generation=2 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220021827.mkv",
+    "10-09 16:48:54.538 10036 10036 I MainActivity: onPrepared song=igeba:song:20021827 generation=2 play=true",
+    "10-09 16:48:54.579 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220021827.mkv",
+    "10-09 16:49:04.861 10036 10036 I MainActivity: downloadComplete song=igeba:song:20046950 pendingQueue=true current=igeba:song:20021827 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046950.mkv",
+    "10-09 16:51:18.531 10036 10036 I MainActivity: downloadComplete song=igeba:song:20005121 pendingQueue=true current=igeba:song:20021827 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220005121.mkv",
+    "10-09 16:54:10.121 10036 10036 I MainActivity: playLocalFile song=igeba:song:20046950 generation=3 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046950.mkv",
+    "10-09 16:54:10.203 10036 10036 I MainActivity: onPrepared song=igeba:song:20046950 generation=3 play=true",
+    "10-09 16:54:10.255 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046950.mkv",
+    "10-09 16:57:29.534 10036 10036 I MainActivity: downloadComplete song=igeba:song:10033094 pendingQueue=true current=igeba:song:20046950 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/210033094.mkv",
+    "10-09 16:58:46.934 10036 10036 I MainActivity: downloadComplete song=igeba:song:10016744 pendingQueue=true current=igeba:song:20046950 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/210016744.mkv",
+    "10-09 16:59:16.885 10036 10036 I MainActivity: Embedded seamless switch original=true main=306602 alternate=306698 drift=96",
+    "10-09 16:59:36.125 10036 10036 I MainActivity: playLocalFile song=igeba:song:20005121 generation=4 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220005121.mkv",
+    "10-09 16:59:36.202 10036 10036 I MainActivity: onPrepared song=igeba:song:20005121 generation=4 play=true",
+    "10-09 16:59:36.247 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/220005121.mkv",
+    "10-09 17:00:35.299 10036 10036 I MainActivity: downloadComplete song=igeba:song:20050902 pendingQueue=true current=igeba:song:20005121 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220050902.mkv",
+    "10-09 17:01:02.028 10036 10036 I MainActivity: playLocalFile song=igeba:song:10033094 generation=5 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/210033094.mkv",
+    "10-09 17:01:02.110 10036 10036 I MainActivity: onPrepared song=igeba:song:10033094 generation=5 play=true",
+    "10-09 17:01:02.155 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/210033094.mkv",
+    "10-09 17:01:46.924 10036 10036 I MainActivity: downloadComplete song=igeba:song:20046407 pendingQueue=true current=igeba:song:10033094 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046407.mkv",
+    "10-09 17:02:33.314 10036 10036 I MainActivity: playLocalFile song=igeba:song:10016744 generation=6 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/210016744.mkv",
+    "10-09 17:02:33.388 10036 10036 I MainActivity: onPrepared song=igeba:song:10016744 generation=6 play=true",
+    "10-09 17:02:33.442 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/210016744.mkv",
+    "10-09 17:02:48.579 10036 10036 I MainActivity: playLocalFile song=igeba:song:20050902 generation=7 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220050902.mkv",
+    "10-09 17:02:48.652 10036 10036 I MainActivity: onPrepared song=igeba:song:20050902 generation=7 play=true",
+    "10-09 17:02:48.684 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/220050902.mkv",
+    "10-09 17:03:00.714 10036 10036 I MainActivity: playLocalFile song=igeba:song:20046407 generation=8 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046407.mkv",
+    "10-09 17:03:00.804 10036 10036 I MainActivity: onPrepared song=igeba:song:20046407 generation=8 play=true",
+    "10-09 17:03:00.840 10036 10036 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046407.mkv",
+    "10-09 17:03:09.713 29859 29859 I MainActivity: playLocalFile song=igeba:song:20046407 generation=1 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046407.mkv",
+    "10-09 17:03:09.916 29859 29859 I MainActivity: onPrepared song=igeba:song:20046407 generation=1 play=true",
+    "10-09 17:03:09.981 29859 29859 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/220046407.mkv",
+    "10-09 17:03:51.927 29859 29859 I MainActivity: downloadComplete song=igeba:song:20051274 pendingQueue=true current=igeba:song:20046407 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/220051274.mkv",
+    "10-09 17:03:53.450 29859 29859 W MainActivity: downloadFailed song=igeba:song:01113666 error=媒体服务器 HTTP 403: Forbidden:Url Expired",
+    "10-09 17:06:39.527 29859 29859 I MainActivity: playLocalFile song=igeba:song:20051274 generation=2 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/220051274.mkv",
+    "10-09 17:06:39.637 29859 29859 I MainActivity: onPrepared song=igeba:song:20051274 generation=2 play=true",
+    "10-09 17:06:39.691 29859 29859 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/220051274.mkv",
+    "10-09 17:07:21.299 29859 29859 I MainActivity: downloadComplete song=igeba:song:00522920 pendingQueue=true current=igeba:song:20051274 preparing=false path=/storage/emulated/0/MaidongKTV/video/cloud-song/200522920.mkv",
+    "10-09 17:07:44.016 29859 29859 I MainActivity: playLocalFile song=igeba:song:00522920 generation=3 startPositionMs=0 path=/storage/emulated/0/MaidongKTV/video/cloud-song/200522920.mkv",
+    "10-09 17:07:44.090 29859 29859 I MainActivity: onPrepared song=igeba:song:00522920 generation=3 play=true",
+    "10-09 17:07:44.147 29859 29859 I MainActivity: Embedded seamless vocal ready tracks=2 mainOriginal=true path=/storage/emulated/0/MaidongKTV/video/cloud-song/200522920.mkv"
+  ]
+}

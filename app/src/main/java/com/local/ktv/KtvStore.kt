@@ -30,6 +30,8 @@ class KtvStore {
     @JvmField var clearDownloadsOnBoot = false
     @JvmField var autoFullscreenSeconds = 0
     @JvmField var showUsbSongs = true
+    @JvmField var downloadToUsb = false
+    @JvmField var usbTreeUri = ""
     @JvmField var autoDeleteSongs = true
     @JvmField var reserveStorageGb = 1.0
     @JvmField var floatingButtonEnabled = true
@@ -58,8 +60,7 @@ class KtvStore {
 
     fun load() {
         runCatching {
-            if (!file.exists()) return@runCatching
-            val root = JSONObject(file.readText())
+            val root = JSONObject(android.util.AtomicFile(file).openRead().bufferedReader(Charsets.UTF_8).use { it.readText() })
             loopOne = root.optBoolean("loopOne", false)
             autoNext = root.optBoolean("autoNext", true)
             originalVocal = root.optBoolean("originalVocal", false)
@@ -79,6 +80,8 @@ class KtvStore {
             clearDownloadsOnBoot = root.optBoolean("clearDownloadsOnBoot", false)
             autoFullscreenSeconds = root.optInt("autoFullscreenSeconds", 0)
             showUsbSongs = root.optBoolean("showUsbSongs", true)
+            downloadToUsb = root.optBoolean("downloadToUsb", false)
+            usbTreeUri = root.optString("usbTreeUri", "")
             autoDeleteSongs = root.optBoolean("autoDeleteSongs", true)
             reserveStorageGb = root.optDouble("reserveStorageGb", 1.0).coerceIn(0.5, 64.0)
             floatingButtonEnabled = root.optBoolean("floatingButtonEnabled", true)
@@ -142,6 +145,8 @@ class KtvStore {
                 put("clearDownloadsOnBoot", clearDownloadsOnBoot)
                 put("autoFullscreenSeconds", autoFullscreenSeconds)
                 put("showUsbSongs", showUsbSongs)
+                put("downloadToUsb", downloadToUsb)
+                put("usbTreeUri", usbTreeUri)
                 put("autoDeleteSongs", autoDeleteSongs)
                 put("reserveStorageGb", reserveStorageGb)
                 put("floatingButtonEnabled", floatingButtonEnabled)
@@ -173,18 +178,34 @@ class KtvStore {
             root.toString(2)
         }.getOrDefault("{}")
 
-    fun writeSnapshot(snapshot: String) {
+    @Synchronized fun writeSnapshot(snapshot: String) {
         runCatching {
+            val json = JSONObject(snapshot)
+            check(json.has("favoriteIds") && json.has("playlistSongs")) { "个人记录快照不完整" }
             file.parentFile?.mkdirs()
-            file.writeText(snapshot)
-        }
+            val atomic = android.util.AtomicFile(file)
+            val output = atomic.startWrite()
+            try {
+                output.write(snapshot.toByteArray(Charsets.UTF_8))
+                atomic.finishWrite(output)
+            } catch (error: Exception) {
+                atomic.failWrite(output)
+                throw error
+            }
+        }.onFailure { android.util.Log.e("KtvStore", "个人记录保存失败", it) }
     }
 
-    fun toggleFavorite(song: Song): Boolean = toggleId(favoriteIds, stableId(song))
+    fun toggleFavorite(song: Song): Boolean {
+        PersonalMediaStore.remember(song)
+        return toggleId(favoriteIds, stableId(song))
+    }
 
     fun isFavorite(song: Song): Boolean = stableId(song) in favoriteIds
 
-    fun togglePlaylistSong(playlist: String, song: Song): Boolean = toggleId(songsInPlaylist(playlist), stableId(song))
+    fun togglePlaylistSong(playlist: String, song: Song): Boolean {
+        PersonalMediaStore.remember(song)
+        return toggleId(songsInPlaylist(playlist), stableId(song))
+    }
 
     fun isInPlaylist(playlist: String, song: Song): Boolean = stableId(song) in songsInPlaylist(playlist)
 

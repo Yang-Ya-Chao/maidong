@@ -1,0 +1,85 @@
+{
+  "songs_without_cached_singer_relation": 20264,
+  "samples": [
+    {
+      "id": "1010",
+      "name": "张学友",
+      "cached": 595,
+      "advertised": 595,
+      "first_page_actual": 595,
+      "first_page_unique": 595
+    },
+    {
+      "id": "547",
+      "name": "刘德华",
+      "cached": 535,
+      "advertised": 535,
+      "first_page_actual": 535,
+      "first_page_unique": 535
+    },
+    {
+      "id": "743",
+      "name": "谭咏麟",
+      "cached": 492,
+      "advertised": 492,
+      "first_page_actual": 492,
+      "first_page_unique": 492
+    },
+    {
+      "id": "189",
+      "name": "陈奕迅",
+      "cached": 427,
+      "advertised": 427,
+      "first_page_actual": 427,
+      "first_page_unique": 427
+    },
+    {
+      "id": "693",
+      "name": "容祖儿",
+      "cached": 404,
+      "advertised": 404,
+      "first_page_actual": 404,
+      "first_page_unique": 404
+    },
+    {
+      "id": "467",
+      "name": "李克勤",
+      "cached": 380,
+      "advertised": 380,
+      "first_page_actual": 380,
+      "first_page_unique": 380
+    },
+    {
+      "id": "1085",
+      "name": "卓依婷",
+      "cached": 362,
+      "advertised": 362,
+      "first_page_actual": 362,
+      "first_page_unique": 362
+    },
+    {
+      "id": "153",
+      "name": "陈慧琳",
+      "cached": 332,
+      "advertised": 332,
+      "first_page_actual": 332,
+      "first_page_unique": 332
+    },
+    {
+      "id": "883",
+      "name": "许志安",
+      "cached": 331,
+      "advertised": 331,
+      "first_page_actual": 331,
+      "first_page_unique": 331
+    },
+    {
+      "id": "447",
+      "name": "黎明",
+      "cached": 303,
+      "advertised": 303,
+      "first_page_actual": 303,
+      "first_page_unique": 303
+    }
+  ]
+}

@@ -196,6 +196,15 @@ class KtvStateDatabase(context: Context) :
         writableDatabase.delete("download_logs", null, null)
     }
 
+    @Synchronized
+    fun clearLibraryHistory() {
+        writableDatabase.transaction {
+            listOf("order_media", "sang_history", "song_clicks", "download_logs").forEach {
+                delete(it, null, null)
+            }
+        }
+    }
+
     private fun syncQueueInternal(
         db: SQLiteDatabase,
         queue: List<Song>,

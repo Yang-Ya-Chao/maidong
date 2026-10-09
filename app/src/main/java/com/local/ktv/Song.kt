@@ -23,6 +23,11 @@ class Song {
     @JvmField var remote = false
     @JvmField var playCount = 0
 
+    @JvmField var sourceSongNumber: String? = null
+    @JvmField var sourceVoiceChannel = 0
+    @JvmField var sourceVersion = ""
+    @JvmField var sourceDurationSeconds = 0
+
     @JvmField var dbId: String? = null
     @JvmField var pinyinFull: String? = null
     @JvmField var filename: String? = null
@@ -37,6 +42,10 @@ class Song {
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
+        put("sourceSongNumber", sourceSongNumber)
+        put("sourceVoiceChannel", sourceVoiceChannel)
+        put("sourceVersion", sourceVersion)
+        put("sourceDurationSeconds", sourceDurationSeconds)
         put("title", title)
         put("singer", singer)
         put("category", category)
@@ -69,19 +78,13 @@ class Song {
 
     fun displayTitle(): String = "${title.orEmpty()}  -  ${singer.orEmpty()}"
 
-    fun hasLocalFile(): Boolean = path?.takeIf(String::isNotEmpty)?.let(::File)?.let { file ->
-        SongFileValidator.inspect(file, SongFileValidator.requiresTransportStream(file)).valid
+    fun hasLocalFile(): Boolean = path?.takeIf(String::isNotEmpty)?.let { value ->
+        runCatching { SongStorage.valid(SongStorage.fromPath(value)) }.getOrDefault(false)
     } == true
 
     fun getDownloadUrl(): String {
-        downloadUrl?.takeIf(String::isNotEmpty)?.let { return it }
-        SongApiClient.getSongDownloadUrl(filename?.substringBeforeLast('.') ?: id)?.takeIf(String::isNotEmpty)?.let {
-            downloadUrl = it
-            return it
-        }
-        return filename?.takeIf(String::isNotEmpty)
-            ?.let { "https://pub.cdn.cherryonline.cn/video/cloud-song/$it" }
-            .orEmpty()
+        val number = sourceSongNumber ?: return ""
+        return runCatching { IgebaApiClient.address(number).url }.getOrDefault("")
     }
 
     override fun equals(other: Any?): Boolean {
@@ -117,10 +120,18 @@ class Song {
         @JvmStatic
         fun remote(json: JSONObject): Song = Song().apply {
             id = json.optString("id", json.optString("url"))
-            title = json.optString("title", json.optString("name", "未命名歌曲"))
-            singer = json.optString("singer", "网络曲库")
+            sourceSongNumber = json.optNullableString("sourceSongNumber")
+                ?: json.optNullableString("SongNumber")
+                ?: id?.takeIf { it.startsWith("igeba:song:") }?.substringAfterLast(':')
+            sourceSongNumber?.let { id = IgebaCatalog.songId(it); dbId = id }
+            sourceVoiceChannel = json.optInt("sourceVoiceChannel", json.optInt("VoiceChannel", 0))
+            sourceVersion = json.optString("sourceVersion", json.optString("Version"))
+            sourceDurationSeconds = json.optInt("sourceDurationSeconds", json.optInt("Duration", 0))
+            filename = json.optNullableString("filename") ?: json.optNullableString("FileName")
+            title = json.optString("title", json.optString("SongName", json.optString("name", "未命名歌曲")))
+            singer = json.optString("singer", json.optString("SingerName", "网络曲库"))
             category = json.optString("category", "网络")
-            language = json.optString("language", "国语")
+            language = json.optString("language", json.optString("LanguageName", "国语"))
             pinyin = json.optString("pinyin", initials(title.orEmpty()))
             album = json.optString("album", "")
             playCount = json.optInt("playCount", 0)
@@ -135,6 +146,11 @@ class Song {
         @JvmStatic
         fun fromJson(json: JSONObject): Song = Song().apply {
             id = json.optString("id")
+            sourceSongNumber = json.optNullableString("sourceSongNumber")
+                ?: id?.takeIf { it.startsWith("igeba:song:") }?.substringAfterLast(':')
+            sourceVoiceChannel = json.optInt("sourceVoiceChannel", 0)
+            sourceVersion = json.optString("sourceVersion", "")
+            sourceDurationSeconds = json.optInt("sourceDurationSeconds", 0)
             title = json.optString("title", "未命名歌曲")
             singer = json.optString("singer", "未知歌手")
             category = json.optString("category", "其他")

@@ -21,15 +21,27 @@ function setConnected(connected) {
 }
 
 async function api(path, options = {}) {
-  const response = await fetch(path, {
-    cache: "no-store",
-    headers: { "Content-Type": "application/json" },
-    ...options
-  });
-  const data = await response.json();
-  if (!response.ok || data.ok === false) throw new Error(data.error || "操作失败");
-  setConnected(true);
-  return data;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  try {
+    let response;
+    try {
+      response = await fetch(path, {
+        cache: "no-store",
+        headers: { "Content-Type": "application/json" },
+        ...options,
+        signal: controller.signal
+      });
+    } catch (error) {
+      setConnected(false);
+      throw error;
+    }
+    // A server response proves connectivity even when an operation is rejected.
+    setConnected(true);
+    const data = await response.json();
+    if (!response.ok || data.ok === false) throw new Error(data.error || "操作失败");
+    return data;
+  } finally { window.clearTimeout(timeout); }
 }
 
 function toast(text) {
@@ -59,7 +71,10 @@ function openPage(name) {
   if (name === "search" && !$("#hotList").children.length) loadHot(1);
 }
 
+let refreshing = false;
 async function refresh() {
+  if (refreshing) return;
+  refreshing = true;
   try {
     const data = await api("/api/v1/state");
     const current = data.current || {};
@@ -79,9 +94,9 @@ async function refresh() {
     $("#original").classList.toggle("active", data.vocalMode === "original");
     $("#accompany").classList.toggle("active", data.vocalMode !== "original");
     $("#nextSong").textContent = data.next?.title || "队列为空";
-  } catch (_) {
-    setConnected(false);
-  }
+  } catch (error) {
+    console.warn('状态更新失败', error.message);
+  } finally { refreshing = false; }
 }
 
 async function playerAction(action) {

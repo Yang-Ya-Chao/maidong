@@ -6,7 +6,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /** Rejects complete-looking CDN previews that pass the old size-only check. */
 object SongFileValidator {
-    const val MIN_VALID_FILE_SIZE = 6L * 1024L * 1024L
+    const val MIN_VALID_FILE_SIZE = 64L
     const val MIN_SONG_DURATION_MS = 60_000L
     private const val TS_PACKET_SIZE = 188
     private const val PROBE_PACKET_COUNT = 24_000 // about 4.3 MiB at each end
@@ -44,9 +44,28 @@ object SongFileValidator {
             return Result(false, reason = "file too small: ${file.length()}")
         }
         RandomAccessFile(file, "r").use { input ->
+            if (!requireTransportStream) {
+                val header = ByteArray(12)
+                input.readFully(header)
+                input.seek(0)
+                val signature = header.take(4).toByteArray()
+                val ebml = signature.contentEquals(byteArrayOf(0x1a,0x45,0xdf.toByte(),0xa3.toByte()))
+                val ftyp = String(header,4,4,Charsets.US_ASCII) == "ftyp"
+                val audio = String(header,0,3,Charsets.US_ASCII) == "ID3" ||
+                    String(header,0,4,Charsets.US_ASCII) in listOf("fLaC","RIFF","OggS") ||
+                    (header[0].toInt() and 0xff == 0xff && header[1].toInt() and 0xe0 == 0xe0)
+                if (ebml || ftyp || audio) {
+                    val marker = File(file.parentFile,file.name+".complete.json")
+                    if (marker.exists()) {
+                        val total = runCatching { org.json.JSONObject(marker.readText()).getLong("bytes") }.getOrDefault(-1)
+                        if (total != file.length()) return Result(false,reason="下载文件长度不匹配")
+                    }
+                    return Result(true)
+                }
+            }
             val syncOffset = findSyncOffset(input)
             if (syncOffset < 0) {
-                return if (requireTransportStream) Result(false, reason = "not an MPEG-TS file") else Result(true)
+return Result(false, reason = "无法识别媒体容器")
             }
             val packetCount = ((input.length() - syncOffset) / TS_PACKET_SIZE).coerceAtLeast(0)
             if (packetCount < 10) return Result(false, reason = "incomplete MPEG-TS file")

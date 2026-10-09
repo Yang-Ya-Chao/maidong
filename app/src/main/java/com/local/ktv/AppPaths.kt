@@ -17,7 +17,9 @@ object AppPaths {
     val appsDir = File(root, "apps")
     val backupDir = File(root, "backup")
     val databaseDir = File(root, "database")
-    val databaseFile = File(databaseDir, "muse.db")
+    val databaseFile = File(databaseDir, "igeba_catalog.db")
+    val singerPortraitFile = File(databaseDir, "singer_portraits.db")
+    val igebaSessionFile = File(root, "igeba_session.json")
     val videoDir = File(VIDEO_PATH)
     val cloudSongsDir = File(videoDir, "cloud-song")
 
@@ -28,8 +30,4 @@ object AppPaths {
         }
     }
 
-    /** The original IJK binary creates this log folder internally; remove it after native startup. */
-    fun removeNativeLegacyLogDirectory() {
-        File("/storage/emulated/0/muse").deleteRecursively()
-    }
 }

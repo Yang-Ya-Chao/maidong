@@ -1,0 +1,24 @@
+{
+  "igeba_catalog.db": {
+    "integrity": "ok",
+    "counts": {
+      "source_songs": 81801,
+      "source_singers": 4807,
+      "source_playlists": 70,
+      "source_playlist_songs": 3669,
+      "source_singer_songs": 66026,
+      "meta": 6
+    },
+    "apk_matches_source": true,
+    "sha256": "9fee4f7d184330e3aa2d4d56ee93d4ea419b1164342f66164d7fe4d546c24782"
+  },
+  "singer_portraits.db": {
+    "integrity": "ok",
+    "counts": {
+      "singer_portraits": 68314,
+      "meta": 2
+    },
+    "apk_matches_source": true,
+    "sha256": "2a82282e43c90f9f03676a13c16d297d1ae44947a08177d329a38497e41c96f5"
+  }
+}

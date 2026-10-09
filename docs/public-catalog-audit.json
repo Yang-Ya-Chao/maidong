@@ -1,0 +1,2765 @@
+{
+  "checked_utc": "2026-10-09T08:07:53.932779+00:00",
+  "anonymous_user_id": 0,
+  "live_playlist_count": "63",
+  "live_song_count": "81801",
+  "cache_integrity": "ok",
+  "cache_counts": {
+    "source_songs": 81801,
+    "source_singers": 4807,
+    "source_playlists": 70,
+    "source_playlist_songs": 3669
+  },
+  "dangling_playlist_members": 0,
+  "playlists": [
+    {
+      "id": "51890",
+      "title": "抖音热门歌曲",
+      "live_count": 90,
+      "cached_count": 90,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20046792",
+          "SongName": "风经过,唱离合",
+          "SingerName": "婉枫/张朕",
+          "FileName": "220046792.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20046626",
+          "SongName": "转身即心痛",
+          "SingerName": "吉星出租",
+          "FileName": "220046626.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20044497",
+          "SongName": "戒断反应",
+          "SingerName": "半吨兄弟",
+          "FileName": "220044497.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20044333",
+          "SongName": "盛不盛开都是花",
+          "SingerName": "何雅楠",
+          "FileName": "220044333.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20046158",
+          "SongName": "妈妈说",
+          "SingerName": "海来阿木",
+          "FileName": "220046158.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "12053",
+      "title": "把人生揉进一张歌单",
+      "live_count": 48,
+      "cached_count": 48,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20042635",
+          "SongName": "走在人世间",
+          "SingerName": "风语",
+          "FileName": "220042635.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20045953",
+          "SongName": "人间半途",
+          "SingerName": "刘阳阳",
+          "FileName": "220045953.mkv",
+          "VoiceChannel": "2"
+        },
+        {
+          "SongNumber": "20045551",
+          "SongName": "人间一趟不过碎银几两",
+          "SingerName": "张欣",
+          "FileName": "220045551.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20045874",
+          "SongName": "唯有碎银解千愁",
+          "SingerName": "黄文文",
+          "FileName": "220045874.mkv",
+          "VoiceChannel": "2"
+        },
+        {
+          "SongNumber": "20042783",
+          "SongName": "谁的生活没有眼泪",
+          "SingerName": "陈建平/红蔷薇",
+          "FileName": "220042783.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "48527",
+      "title": "耳熟能详的经典歌曲",
+      "live_count": 199,
+      "cached_count": 199,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10016744",
+          "SongName": "后来",
+          "SingerName": "刘若英",
+          "FileName": "210016744.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20043920",
+          "SongName": "借梦",
+          "SingerName": "周深",
+          "FileName": "220043920.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20040286",
+          "SongName": "醒不来的梦",
+          "SingerName": "回小仙",
+          "FileName": "220040286.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20007455",
+          "SongName": "卜卦",
+          "SingerName": "崔子格",
+          "FileName": "220007455.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10008353",
+          "SongName": "涛声依旧",
+          "SingerName": "毛宁",
+          "FileName": "210008353.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "23542",
+      "title": "恭喜发财",
+      "live_count": 48,
+      "cached_count": 48,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10030634",
+          "SongName": "恭喜发财",
+          "SingerName": "刘德华",
+          "FileName": "210030634.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034933",
+          "SongName": "恭喜发财",
+          "SingerName": "刘德华/王宝强/刘昊然",
+          "FileName": "220034933.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006556",
+          "SongName": "恭喜恭喜",
+          "SingerName": "牛欣欣/开克尔曼尼/柳博/魏依曼/周凯文",
+          "FileName": "220006556.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20030312",
+          "SongName": "恭喜发财好运来",
+          "SingerName": "彭美琪",
+          "FileName": "220030312.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20035031",
+          "SongName": "恭喜恭喜",
+          "SingerName": "炫棋儿/谢峥",
+          "FileName": "220035031.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "19218",
+      "title": "歌姬/音乐剧 - belt/legit/mix",
+      "live_count": 20,
+      "cached_count": 20,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20042049",
+          "SongName": "Memory",
+          "SingerName": "Elaine Paige",
+          "FileName": "220042049.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042265",
+          "SongName": "Let It Go",
+          "SingerName": "Idina Menzel",
+          "FileName": "220042265.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20028261",
+          "SongName": "Never Enough",
+          "SingerName": "邓紫霄",
+          "FileName": "220028261.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20029962",
+          "SongName": "心脏",
+          "SingerName": "阿云嘎",
+          "FileName": "220029962.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034194",
+          "SongName": "雨中曲",
+          "SingerName": "蔡健雅/阿云嘎",
+          "FileName": "220034194.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "12054",
+      "title": "怀念青春的日子",
+      "live_count": 10,
+      "cached_count": 10,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10010314",
+          "SongName": "同桌的你",
+          "SingerName": "老狼",
+          "FileName": "210010314.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20023060",
+          "SongName": "纪念青春",
+          "SingerName": "蒋雪儿",
+          "FileName": "220023060.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042168",
+          "SongName": "记念",
+          "SingerName": "雷雨心",
+          "FileName": "220042168.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20005715",
+          "SongName": "北京东路的日子",
+          "SingerName": "南外学生",
+          "FileName": "220005715.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042244",
+          "SongName": "怀念青春",
+          "SingerName": "刘刚",
+          "FileName": "220042244.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "15736",
+      "title": "新年新气象",
+      "live_count": 70,
+      "cached_count": 70,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20010766",
+          "SongName": "光阴的故事",
+          "SingerName": "罗大佑",
+          "FileName": "220010766.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10030720",
+          "SongName": "隐形的翅膀",
+          "SingerName": "张韶涵",
+          "FileName": "210030720.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010721",
+          "SongName": "小小",
+          "SingerName": "容祖儿",
+          "FileName": "220010721.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20039881",
+          "SongName": "孤勇者",
+          "SingerName": "张韶涵/信",
+          "FileName": "220039881.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20021430",
+          "SongName": "时光正好",
+          "SingerName": "郁可唯",
+          "FileName": "220021430.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "15680",
+      "title": "一个城市一首歌",
+      "live_count": 18,
+      "cached_count": 18,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20021827",
+          "SongName": "成都",
+          "SingerName": "赵雷",
+          "FileName": "220021827.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20017341",
+          "SongName": "去大理",
+          "SingerName": "黄渤",
+          "FileName": "220017341.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20039395",
+          "SongName": "西安人的歌",
+          "SingerName": "腾格尔/程渤智",
+          "FileName": "220039395.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20030787",
+          "SongName": "我去贵州谈恋爱",
+          "SingerName": "马伊丽",
+          "FileName": "220030787.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034498",
+          "SongName": "神奇贵州",
+          "SingerName": "李浩南",
+          "FileName": "220034498.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "15216",
+      "title": "一晃就老了！",
+      "live_count": 8,
+      "cached_count": 8,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20039469",
+          "SongName": "时光弹指如烟云",
+          "SingerName": "秋裤大叔",
+          "FileName": "220039469.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20025353",
+          "SongName": "一晃就老了",
+          "SingerName": "秋裤大叔",
+          "FileName": "220025353.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20041457",
+          "SongName": "岁月神偷",
+          "SingerName": "金玟岐",
+          "FileName": "220041457.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01111953",
+          "SongName": "偷走我的心",
+          "SingerName": "黎明",
+          "FileName": "201111953.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10016744",
+          "SongName": "后来",
+          "SingerName": "刘若英",
+          "FileName": "210016744.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "14458",
+      "title": "那些年红遍大街小巷的歌",
+      "live_count": 203,
+      "cached_count": 203,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10007294",
+          "SongName": "两只蝴蝶",
+          "SingerName": "庞龙",
+          "FileName": "210007294.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010621",
+          "SongName": "老鼠爱大米",
+          "SingerName": "杨臣刚",
+          "FileName": "220010621.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01106074",
+          "SongName": "老鼠爱大米",
+          "SingerName": "香香/杨臣刚",
+          "FileName": "201106074.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10030845",
+          "SongName": "老鼠爱大米",
+          "SingerName": "香香",
+          "FileName": "210030845.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10009335",
+          "SongName": "猪之歌",
+          "SingerName": "香香",
+          "FileName": "210009335.mkv",
+          "VoiceChannel": "1"
+        }
+      ]
+    },
+    {
+      "id": "14446",
+      "title": "圣诞快乐",
+      "live_count": 56,
+      "cached_count": 56,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20009841",
+          "SongName": "圣诞夜",
+          "SingerName": "安又琪",
+          "FileName": "220009841.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20031720",
+          "SongName": "祝你圣诞快乐",
+          "SingerName": "黑鸭子",
+          "FileName": "220031720.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10032013",
+          "SongName": "雪绒花",
+          "SingerName": "金莎",
+          "FileName": "210032013.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20031700",
+          "SongName": "铃儿响叮当",
+          "SingerName": "黑鸭子",
+          "FileName": "220031700.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10021440",
+          "SongName": "平安夜",
+          "SingerName": "合唱",
+          "FileName": "210021440.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "13166",
+      "title": "团建必点",
+      "live_count": 92,
+      "cached_count": 92,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10034792",
+          "SongName": "一起走过的日子",
+          "SingerName": "刘德华",
+          "FileName": "210034792.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013378",
+          "SongName": "团结就是力量",
+          "SingerName": "佚名",
+          "FileName": "210013378.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20001967",
+          "SongName": "离开地球表面",
+          "SingerName": "五月天",
+          "FileName": "220001967.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20023934",
+          "SongName": "干杯",
+          "SingerName": "黑豹乐队",
+          "FileName": "220023934.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034499",
+          "SongName": "卡路里",
+          "SingerName": "群星",
+          "FileName": "220034499.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "12824",
+      "title": "DJ精选",
+      "live_count": 178,
+      "cached_count": 178,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20030763",
+          "SongName": "狂浪",
+          "SingerName": "花姐",
+          "FileName": "220030763.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20043226",
+          "SongName": "错的人是我",
+          "SingerName": "花姐",
+          "FileName": "220043226.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042711",
+          "SongName": "夜之光",
+          "SingerName": "花姐",
+          "FileName": "220042711.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20040416",
+          "SongName": "爱你一万年",
+          "SingerName": "花姐",
+          "FileName": "220040416.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20041163",
+          "SongName": "爱的迷魂汤",
+          "SingerName": "花姐",
+          "FileName": "220041163.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "11114",
+      "title": "壮丽河山，千秋华夏",
+      "live_count": 84,
+      "cached_count": 84,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20010442",
+          "SongName": "今天是你的生日",
+          "SingerName": "祖海",
+          "FileName": "220010442.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010836",
+          "SongName": "我和我的祖国",
+          "SingerName": "李谷一",
+          "FileName": "220010836.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013301",
+          "SongName": "东方红",
+          "SingerName": "佚名",
+          "FileName": "210013301.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010855",
+          "SongName": "歌唱祖国",
+          "SingerName": "合唱",
+          "FileName": "210010855.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10033056",
+          "SongName": "爱我中华",
+          "SingerName": "宋祖英",
+          "FileName": "210033056.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "10990",
+      "title": "海上生明月，天涯共此时",
+      "live_count": 60,
+      "cached_count": 60,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20004619",
+          "SongName": "想念",
+          "SingerName": "陈楚生",
+          "FileName": "220004619.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20014971",
+          "SongName": "时间都去哪儿了",
+          "SingerName": "王铮亮",
+          "FileName": "220014971.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "00505462",
+          "SongName": "梦回家乡",
+          "SingerName": "刘欢",
+          "FileName": "200505462.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10007897",
+          "SongName": "该是回家的时候",
+          "SingerName": "陈星/松青",
+          "FileName": "210007897.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011740",
+          "SongName": "家和万事兴",
+          "SingerName": "郁钧剑/张也",
+          "FileName": "210011740.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "7586",
+      "title": "追忆纯真童年",
+      "live_count": 66,
+      "cached_count": 66,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10013149",
+          "SongName": "小毛驴",
+          "SingerName": "佚名",
+          "FileName": "210013149.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20017711",
+          "SongName": "白龙马",
+          "SingerName": "林一佳",
+          "FileName": "220017711.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10025275",
+          "SongName": "丢手巾",
+          "SingerName": "佚名",
+          "FileName": "210025275.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20008379",
+          "SongName": "多来咪",
+          "SingerName": "佚名",
+          "FileName": "220008379.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20008404",
+          "SongName": "两只老虎",
+          "SingerName": "佚名",
+          "FileName": "220008404.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "6663",
+      "title": "无奋斗，不青春",
+      "live_count": 55,
+      "cached_count": 55,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20042515",
+          "SongName": "光荣啊中国共青团",
+          "SingerName": "群星",
+          "FileName": "220042515.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20040761",
+          "SongName": "年轻的战场",
+          "SingerName": "张杰/吴汶芳",
+          "FileName": "220040761.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013378",
+          "SongName": "团结就是力量",
+          "SingerName": "佚名",
+          "FileName": "210013378.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034748",
+          "SongName": "我的中国心",
+          "SingerName": "肖战",
+          "FileName": "220034748.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011300",
+          "SongName": "我的未来不是梦",
+          "SingerName": "张雨生",
+          "FileName": "210011300.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "6613",
+      "title": "咱们工人有力量",
+      "live_count": 40,
+      "cached_count": 40,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10001020",
+          "SongName": "祝福祖国",
+          "SingerName": "汤灿",
+          "FileName": "210001020.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01111094",
+          "SongName": "咱们工人有力量",
+          "SingerName": "阎维文",
+          "FileName": "201111094.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10015832",
+          "SongName": "劳动最光荣",
+          "SingerName": "佚名",
+          "FileName": "210015832.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013378",
+          "SongName": "团结就是力量",
+          "SingerName": "佚名",
+          "FileName": "210013378.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20033771",
+          "SongName": "打起手鼓唱起歌",
+          "SingerName": "萨顶顶",
+          "FileName": "220033771.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "6488",
+      "title": "再不疯狂就老了",
+      "live_count": 65,
+      "cached_count": 65,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10000924",
+          "SongName": "突然的自我",
+          "SingerName": "伍佰",
+          "FileName": "210000924.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10024284",
+          "SongName": "泪桥",
+          "SingerName": "伍佰",
+          "FileName": "210024284.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20021827",
+          "SongName": "成都",
+          "SingerName": "赵雷",
+          "FileName": "220021827.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10012690",
+          "SongName": "大海",
+          "SingerName": "张雨生",
+          "FileName": "210012690.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10016911",
+          "SongName": "朋友",
+          "SingerName": "周华健",
+          "FileName": "210016911.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "6276",
+      "title": "蒙古新藏风情",
+      "live_count": 16,
+      "cached_count": 16,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20013150",
+          "SongName": "哈达",
+          "SingerName": "春雷",
+          "FileName": "220013150.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20040768",
+          "SongName": "雪山阿佳",
+          "SingerName": "乌兰托娅",
+          "FileName": "220040768.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010401",
+          "SongName": "青藏高原",
+          "SingerName": "李娜",
+          "FileName": "210010401.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10031989",
+          "SongName": "天路",
+          "SingerName": "韩红",
+          "FileName": "210031989.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20037864",
+          "SongName": "可可托海的牧羊人",
+          "SingerName": "王琪",
+          "FileName": "220037864.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "5368",
+      "title": "古风系列",
+      "live_count": 185,
+      "cached_count": 185,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20044250",
+          "SongName": "剑魂",
+          "SingerName": "李炜",
+          "FileName": "220044250.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10018169",
+          "SongName": "刀剑如梦",
+          "SingerName": "周华健",
+          "FileName": "210018169.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "00511289",
+          "SongName": "沧海一声笑",
+          "SingerName": "许冠杰",
+          "FileName": "200511289.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20039983",
+          "SongName": "忆江南",
+          "SingerName": "阿云嘎/杨宗纬/郑棋元/蔡程昱",
+          "FileName": "220039983.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010684",
+          "SongName": "江山无限",
+          "SingerName": "屠洪刚",
+          "FileName": "220010684.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "5117",
+      "title": "女神节快乐！",
+      "live_count": 84,
+      "cached_count": 83,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20042214",
+          "SongName": "你要相信这不是最后一天",
+          "SingerName": "华晨宇",
+          "FileName": "220042214.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042202",
+          "SongName": "水火相容",
+          "SingerName": "陈零九/邱锋泽",
+          "FileName": "220042202.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042204",
+          "SongName": "若把你",
+          "SingerName": "刘瑾睿",
+          "FileName": "220042204.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042211",
+          "SongName": "你好吗",
+          "SingerName": "魏嘉莹",
+          "FileName": "220042211.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20042213",
+          "SongName": "当我们在同一个世界",
+          "SingerName": "黄绮珊/萧敬腾",
+          "FileName": "220042213.mkv",
+          "VoiceChannel": "0"
+        }
+      ],
+      "full_returned_count": 83,
+      "unique_song_count": 83,
+      "duplicate_song_numbers": [],
+      "uncached_song_numbers": []
+    },
+    {
+      "id": "4501",
+      "title": "爱在情人节",
+      "live_count": 99,
+      "cached_count": 99,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "01132678",
+          "SongName": "今天情人节",
+          "SingerName": "梁静茹",
+          "FileName": "201132678.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10017181",
+          "SongName": "很爱很爱你",
+          "SingerName": "刘若英",
+          "FileName": "210017181.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10009989",
+          "SongName": "相思风雨中",
+          "SingerName": "张学友/汤宝如",
+          "FileName": "210009989.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20037639",
+          "SongName": "知否知否",
+          "SingerName": "胡夏/郁可唯",
+          "FileName": "220037639.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20004855",
+          "SongName": "因为爱情",
+          "SingerName": "王菲/陈奕迅",
+          "FileName": "220004855.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "4367",
+      "title": "闹元宵",
+      "live_count": 34,
+      "cached_count": 34,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "01100446",
+          "SongName": "元宵节",
+          "SingerName": "佚名",
+          "FileName": "201100446.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10033985",
+          "SongName": "小拜年",
+          "SingerName": "佚名",
+          "FileName": "210033985.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10005898",
+          "SongName": "花好月圆夜",
+          "SingerName": "任贤齐/杨千嬅",
+          "FileName": "210005898.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20029355",
+          "SongName": "春江花月夜",
+          "SingerName": "陈霈然",
+          "FileName": "220029355.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10035633",
+          "SongName": "花好月圆",
+          "SingerName": "刁寒",
+          "FileName": "210035633.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "3819",
+      "title": "不论多远，回家过年",
+      "live_count": 64,
+      "cached_count": 64,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20029468",
+          "SongName": "回家过年",
+          "SingerName": "高欣塬/高欣妍/高培楠",
+          "FileName": "220029468.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20022824",
+          "SongName": "欢乐中国年 有钱没钱回家过年",
+          "SingerName": "王宝强/白客/岳云鹏/柳岩",
+          "FileName": "220022824.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20023320",
+          "SongName": "回家",
+          "SingerName": "科尔沁夫",
+          "FileName": "220023320.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10021078",
+          "SongName": "故乡的云",
+          "SingerName": "费翔",
+          "FileName": "210021078.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10014991",
+          "SongName": "家乡",
+          "SingerName": "韩红",
+          "FileName": "210014991.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "3805",
+      "title": "春节在家开晚会",
+      "live_count": 50,
+      "cached_count": 50,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10016934",
+          "SongName": "祝福",
+          "SingerName": "张学友",
+          "FileName": "210016934.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006556",
+          "SongName": "恭喜恭喜",
+          "SingerName": "牛欣欣/开克尔曼尼/柳博/魏依曼/周凯文",
+          "FileName": "220006556.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006553",
+          "SongName": "拜年",
+          "SingerName": "牛欣欣/柳博/魏依曼/周凯文",
+          "FileName": "220006553.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20031913",
+          "SongName": "孝敬爹和妈",
+          "SingerName": "大平",
+          "FileName": "220031913.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20039500",
+          "SongName": "听闻远方有你",
+          "SingerName": "刘艺雯",
+          "FileName": "220039500.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "3615",
+      "title": "2023年会节目单",
+      "live_count": 92,
+      "cached_count": 92,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10030720",
+          "SongName": "隐形的翅膀",
+          "SingerName": "张韶涵",
+          "FileName": "210030720.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010766",
+          "SongName": "光阴的故事",
+          "SingerName": "罗大佑",
+          "FileName": "220010766.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10010102",
+          "SongName": "红日",
+          "SingerName": "李克勤",
+          "FileName": "210010102.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20019002",
+          "SongName": "小幸运",
+          "SingerName": "田馥甄",
+          "FileName": "220019002.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010721",
+          "SongName": "小小",
+          "SingerName": "容祖儿",
+          "FileName": "220010721.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "3609",
+      "title": "圣诞必点歌曲",
+      "live_count": 45,
+      "cached_count": 45,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20031720",
+          "SongName": "祝你圣诞快乐",
+          "SingerName": "黑鸭子",
+          "FileName": "220031720.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20009841",
+          "SongName": "圣诞夜",
+          "SingerName": "安又琪",
+          "FileName": "220009841.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10002339",
+          "SongName": "想念圣诞节",
+          "SingerName": "萧亚轩",
+          "FileName": "210002339.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20031700",
+          "SongName": "铃儿响叮当",
+          "SingerName": "黑鸭子",
+          "FileName": "220031700.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10032013",
+          "SongName": "雪绒花",
+          "SingerName": "金莎",
+          "FileName": "210032013.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "2873",
+      "title": "欢度国庆",
+      "live_count": 54,
+      "cached_count": 54,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20010442",
+          "SongName": "今天是你的生日",
+          "SingerName": "祖海",
+          "FileName": "220010442.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010836",
+          "SongName": "我和我的祖国",
+          "SingerName": "李谷一",
+          "FileName": "220010836.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010855",
+          "SongName": "歌唱祖国",
+          "SingerName": "合唱",
+          "FileName": "210010855.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013301",
+          "SongName": "东方红",
+          "SingerName": "佚名",
+          "FileName": "210013301.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034748",
+          "SongName": "我的中国心",
+          "SingerName": "肖战",
+          "FileName": "220034748.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "1095",
+      "title": "2021热门歌曲",
+      "live_count": 21,
+      "cached_count": 21,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20022675",
+          "SongName": "凉凉",
+          "SingerName": "杨宗纬/张碧晨",
+          "FileName": "220022675.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20039500",
+          "SongName": "听闻远方有你",
+          "SingerName": "刘艺雯",
+          "FileName": "220039500.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20034719",
+          "SongName": "忘情牛肉面",
+          "SingerName": "马健涛/李冰",
+          "FileName": "220034719.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20028908",
+          "SongName": "沙漠骆驼",
+          "SingerName": "冯提莫",
+          "FileName": "220028908.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20031585",
+          "SongName": "差不多姑娘",
+          "SingerName": "邓紫棋",
+          "FileName": "220031585.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "1090",
+      "title": "70后的年三十家庭聚会",
+      "live_count": 20,
+      "cached_count": 20,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10007897",
+          "SongName": "该是回家的时候",
+          "SingerName": "陈星/松青",
+          "FileName": "210007897.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010711",
+          "SongName": "中华民谣",
+          "SingerName": "孙浩",
+          "FileName": "220010711.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10016934",
+          "SongName": "祝福",
+          "SingerName": "张学友",
+          "FileName": "210016934.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011241",
+          "SongName": "小芳",
+          "SingerName": "李春波",
+          "FileName": "210011241.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011198",
+          "SongName": "流浪歌",
+          "SingerName": "陈星",
+          "FileName": "210011198.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "1085",
+      "title": "春节聚会背景歌曲（童声）",
+      "live_count": 14,
+      "cached_count": 14,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20006556",
+          "SongName": "恭喜恭喜",
+          "SingerName": "牛欣欣/开克尔曼尼/柳博/魏依曼/周凯文",
+          "FileName": "220006556.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006555",
+          "SongName": "恭喜发财",
+          "SingerName": "牛欣欣",
+          "FileName": "220006555.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006553",
+          "SongName": "拜年",
+          "SingerName": "牛欣欣/柳博/魏依曼/周凯文",
+          "FileName": "220006553.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006559",
+          "SongName": "好运来",
+          "SingerName": "牛欣欣",
+          "FileName": "220006559.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006558",
+          "SongName": "好运跟我来",
+          "SingerName": "牛欣欣",
+          "FileName": "220006558.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "1083",
+      "title": "恭喜发财，好运来！",
+      "live_count": 10,
+      "cached_count": 10,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20034933",
+          "SongName": "恭喜发财",
+          "SingerName": "刘德华/王宝强/刘昊然",
+          "FileName": "220034933.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20019872",
+          "SongName": "恭喜恭喜",
+          "SingerName": "SING女团",
+          "FileName": "220019872.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "00516313",
+          "SongName": "八星报喜+财神到+恭喜你+喜气",
+          "SingerName": "Boy'z/Twins",
+          "FileName": "200516313.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20031816",
+          "SongName": "新年好财神到",
+          "SingerName": "陈浩民/林子聪/邹文正/孙八一",
+          "FileName": "220031816.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20030218",
+          "SongName": "恭喜发财",
+          "SingerName": "李心海",
+          "FileName": "220030218.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "1080",
+      "title": "新春晚会歌单",
+      "live_count": 8,
+      "cached_count": 8,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20035728",
+          "SongName": "明天会更好",
+          "SingerName": "群星",
+          "FileName": "220035728.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20000804",
+          "SongName": "真心英雄",
+          "SingerName": "成龙/周华健/李宗盛",
+          "FileName": "220000804.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10016868",
+          "SongName": "冰雨",
+          "SingerName": "刘德华",
+          "FileName": "210016868.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10017407",
+          "SongName": "梦醒时分",
+          "SingerName": "陈淑桦",
+          "FileName": "210017407.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20003024",
+          "SongName": "爱琴海",
+          "SingerName": "央金兰泽",
+          "FileName": "220003024.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "226",
+      "title": "90后ktv必点歌曲（一）",
+      "live_count": 20,
+      "cached_count": 20,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10033827",
+          "SongName": "浮夸",
+          "SingerName": "陈奕迅",
+          "FileName": "210033827.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10005213",
+          "SongName": "晴天",
+          "SingerName": "周杰伦",
+          "FileName": "210005213.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20004155",
+          "SongName": "背对背拥抱",
+          "SingerName": "林俊杰",
+          "FileName": "220004155.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006067",
+          "SongName": "想你的夜",
+          "SingerName": "关喆",
+          "FileName": "220006067.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10014169",
+          "SongName": "K歌之王",
+          "SingerName": "陈奕迅",
+          "FileName": "210014169.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "225",
+      "title": "70后ktv必点（励志篇）",
+      "live_count": 15,
+      "cached_count": 15,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10012634",
+          "SongName": "水手",
+          "SingerName": "郑智化",
+          "FileName": "210012634.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10009837",
+          "SongName": "男儿当自强",
+          "SingerName": "林子祥",
+          "FileName": "210009837.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10019048",
+          "SongName": "无言感激",
+          "SingerName": "谭咏麟",
+          "FileName": "210019048.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10012261",
+          "SongName": "路叠路",
+          "SingerName": "谭咏麟",
+          "FileName": "210012261.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10019663",
+          "SongName": "光辉岁月",
+          "SingerName": "Beyond",
+          "FileName": "210019663.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "211",
+      "title": "新白娘子传奇",
+      "live_count": 11,
+      "cached_count": 11,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10002604",
+          "SongName": "千年等一回",
+          "SingerName": "高胜美",
+          "FileName": "210002604.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20015592",
+          "SongName": "千年等一回",
+          "SingerName": "叶童",
+          "FileName": "220015592.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011406",
+          "SongName": "渡情",
+          "SingerName": "左宏元/张慧清",
+          "FileName": "210011406.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01132991",
+          "SongName": "前世今生",
+          "SingerName": "佚名",
+          "FileName": "201132991.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20038736",
+          "SongName": "前世今生",
+          "SingerName": "高胜美/Formosa",
+          "FileName": "220038736.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "196",
+      "title": "端午，想起了白娘子",
+      "live_count": 11,
+      "cached_count": 11,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10002604",
+          "SongName": "千年等一回",
+          "SingerName": "高胜美",
+          "FileName": "210002604.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20030923",
+          "SongName": "渡情",
+          "SingerName": "鞠婧祎",
+          "FileName": "220030923.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20033471",
+          "SongName": "前世今生/千年等一回",
+          "SingerName": "于朦胧",
+          "FileName": "220033471.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01132991",
+          "SongName": "前世今生",
+          "SingerName": "佚名",
+          "FileName": "201132991.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10008425",
+          "SongName": "心湖雨又风",
+          "SingerName": "高胜美",
+          "FileName": "210008425.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "186",
+      "title": "毕业聚会必点歌曲(少年版)",
+      "live_count": 23,
+      "cached_count": 23,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "01106358",
+          "SongName": "毕业歌",
+          "SingerName": "佚名",
+          "FileName": "201106358.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20023954",
+          "SongName": "毕业安可",
+          "SingerName": "徐浩",
+          "FileName": "220023954.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20020837",
+          "SongName": "毕业了离别了",
+          "SingerName": "游长江",
+          "FileName": "220020837.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "00515210",
+          "SongName": "毕业生",
+          "SingerName": "张明敏",
+          "FileName": "200515210.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10016046",
+          "SongName": "告别校园时",
+          "SingerName": "李克勤",
+          "FileName": "210016046.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "173",
+      "title": "五月五，到端午",
+      "live_count": 13,
+      "cached_count": 13,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10031885",
+          "SongName": "龙船调",
+          "SingerName": "宋祖英",
+          "FileName": "210031885.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20028023",
+          "SongName": "龙舟谣",
+          "SingerName": "刘贵贤",
+          "FileName": "220028023.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20016408",
+          "SongName": "离骚",
+          "SingerName": "于文华",
+          "FileName": "220016408.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011199",
+          "SongName": "梦里水乡",
+          "SingerName": "江珊",
+          "FileName": "210011199.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006679",
+          "SongName": "疗伤烧肉粽",
+          "SingerName": "周杰伦",
+          "FileName": "220006679.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "171",
+      "title": "少年，奔跑吧！",
+      "live_count": 15,
+      "cached_count": 15,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10030323",
+          "SongName": "我相信",
+          "SingerName": "杨培安",
+          "FileName": "210030323.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10008007",
+          "SongName": "阳光总在风雨后",
+          "SingerName": "许美静",
+          "FileName": "210008007.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10001212",
+          "SongName": "奔跑",
+          "SingerName": "羽泉/黄征",
+          "FileName": "210001212.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10005975",
+          "SongName": "最初的梦想",
+          "SingerName": "范玮琪",
+          "FileName": "210005975.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010527",
+          "SongName": "稻香",
+          "SingerName": "周杰伦",
+          "FileName": "220010527.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "170",
+      "title": "你拍一，我拍一，一个小孩坐飞机",
+      "live_count": 18,
+      "cached_count": 18,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10013149",
+          "SongName": "小毛驴",
+          "SingerName": "佚名",
+          "FileName": "210013149.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20017711",
+          "SongName": "白龙马",
+          "SingerName": "林一佳",
+          "FileName": "220017711.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10025275",
+          "SongName": "丢手巾",
+          "SingerName": "佚名",
+          "FileName": "210025275.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20008379",
+          "SongName": "多来咪",
+          "SingerName": "佚名",
+          "FileName": "220008379.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20008404",
+          "SongName": "两只老虎",
+          "SingerName": "佚名",
+          "FileName": "220008404.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "113",
+      "title": "经典爱国歌20首",
+      "live_count": 20,
+      "cached_count": 20,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10010843",
+          "SongName": "我的祖国",
+          "SingerName": "彭丽媛",
+          "FileName": "210010843.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010854",
+          "SongName": "没有共产党就没有新中国",
+          "SingerName": "佚名",
+          "FileName": "210010854.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013378",
+          "SongName": "团结就是力量",
+          "SingerName": "佚名",
+          "FileName": "210013378.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010855",
+          "SongName": "歌唱祖国",
+          "SingerName": "合唱",
+          "FileName": "210010855.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10014386",
+          "SongName": "党啊,亲爱的妈妈",
+          "SingerName": "关牧村",
+          "FileName": "210014386.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "112",
+      "title": "太阳最红，毛主席最亲",
+      "live_count": 20,
+      "cached_count": 20,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20015464",
+          "SongName": "太阳最红毛主席最亲",
+          "SingerName": "韦唯",
+          "FileName": "220015464.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10028384",
+          "SongName": "爹亲娘亲不如毛主席亲",
+          "SingerName": "佚名",
+          "FileName": "210028384.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01137062",
+          "SongName": "毛主席啊我们永远歌唱你",
+          "SingerName": "佚名",
+          "FileName": "201137062.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10023317",
+          "SongName": "毛主席的话儿记心上",
+          "SingerName": "彭丽媛",
+          "FileName": "210023317.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10012120",
+          "SongName": "毛主席的战士最听党的话",
+          "SingerName": "张伟进",
+          "FileName": "210012120.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "111",
+      "title": "现代京剧经典唱段20首",
+      "live_count": 20,
+      "cached_count": 20,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20013387",
+          "SongName": "浑身是胆雄赳赳",
+          "SingerName": "佚名",
+          "FileName": "220013387.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20002440",
+          "SongName": "穷人的孩子早当家",
+          "SingerName": "佚名",
+          "FileName": "220002440.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10024334",
+          "SongName": "自从退休回上海",
+          "SingerName": "现代京剧",
+          "FileName": "210024334.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10024333",
+          "SongName": "看见了新娘",
+          "SingerName": "现代京剧",
+          "FileName": "210024333.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10020945",
+          "SongName": "智斗",
+          "SingerName": "丁魁智/王玉兰",
+          "FileName": "210020945.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "52",
+      "title": "钱钱钱，命相连！",
+      "live_count": 10,
+      "cached_count": 10,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10012907",
+          "SongName": "钞票",
+          "SingerName": "迟志强",
+          "FileName": "210012907.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10000391",
+          "SongName": "钱不够用",
+          "SingerName": "柯受良",
+          "FileName": "210000391.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013602",
+          "SongName": "我没有钱",
+          "SingerName": "赵传",
+          "FileName": "210013602.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01114877",
+          "SongName": "没有钱你会爱我吗",
+          "SingerName": "雷龙",
+          "FileName": "201114877.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20035895",
+          "SongName": "有钱男子汉没钱汉子难",
+          "SingerName": "丁传亭",
+          "FileName": "220035895.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "51",
+      "title": "一抹相思",
+      "live_count": 1,
+      "cached_count": 1,
+      "returned_count": 1,
+      "sample": [
+        {
+          "SongNumber": "20036119",
+          "SongName": "一抹相思",
+          "SingerName": "郑亦辰",
+          "FileName": "220036119.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "50",
+      "title": "上山下乡怀壮志，战天斗地绘新图！",
+      "live_count": 21,
+      "cached_count": 21,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20013936",
+          "SongName": "我们这一辈",
+          "SingerName": "王佑贵",
+          "FileName": "220013936.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10014977",
+          "SongName": "望故乡",
+          "SingerName": "陈星",
+          "FileName": "210014977.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20037124",
+          "SongName": "遥远的地方",
+          "SingerName": "群星",
+          "FileName": "220037124.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013301",
+          "SongName": "东方红",
+          "SingerName": "佚名",
+          "FileName": "210013301.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20013292",
+          "SongName": "到农村去到边疆去",
+          "SingerName": "佚名",
+          "FileName": "220013292.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "36",
+      "title": "宝贝猪，生日快乐！",
+      "live_count": 25,
+      "cached_count": 25,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "01114699",
+          "SongName": "Happy Birthday",
+          "SingerName": "Twins",
+          "FileName": "201114699.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010693",
+          "SongName": "生日快乐",
+          "SingerName": "卓依婷",
+          "FileName": "210010693.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013198",
+          "SongName": "猪你生日快乐",
+          "SingerName": "范晓萱",
+          "FileName": "210013198.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20028337",
+          "SongName": "爸爸妈妈我想抱抱你",
+          "SingerName": "许冰卓",
+          "FileName": "220028337.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011469",
+          "SongName": "妈妈的吻",
+          "SingerName": "朱晓琳",
+          "FileName": "210011469.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "35",
+      "title": "没有了军号，没有了海魂衫，我们还有回忆。",
+      "live_count": 5,
+      "cached_count": 5,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10009772",
+          "SongName": "军港之夜",
+          "SingerName": "苏小明",
+          "FileName": "210009772.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10012932",
+          "SongName": "我爱这蓝色的海洋",
+          "SingerName": "屠洪刚",
+          "FileName": "210012932.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01121851",
+          "SongName": "人民海军向前进",
+          "SingerName": "佚名",
+          "FileName": "201121851.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013874",
+          "SongName": "天蓝蓝海蓝蓝",
+          "SingerName": "韩磊",
+          "FileName": "210013874.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10023403",
+          "SongName": "陆海空",
+          "SingerName": "秦天/高歌/杨柳",
+          "FileName": "210023403.mkv",
+          "VoiceChannel": "1"
+        }
+      ]
+    },
+    {
+      "id": "34",
+      "title": "女生才懂的甜宠影视歌曲",
+      "live_count": 18,
+      "cached_count": 18,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20035089",
+          "SongName": "心墙",
+          "SingerName": "任嘉伦",
+          "FileName": "220035089.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20035025",
+          "SongName": "今夏",
+          "SingerName": "谭松韵",
+          "FileName": "220035025.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20022675",
+          "SongName": "凉凉",
+          "SingerName": "杨宗纬/张碧晨",
+          "FileName": "220022675.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20006293",
+          "SongName": "三寸天堂",
+          "SingerName": "严艺丹",
+          "FileName": "220006293.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20022592",
+          "SongName": "三生三世",
+          "SingerName": "张杰",
+          "FileName": "220022592.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "33",
+      "title": "杂烩，我的菜，我的爱！",
+      "live_count": 26,
+      "cached_count": 26,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10009908",
+          "SongName": "偏偏喜欢你",
+          "SingerName": "陈百强",
+          "FileName": "210009908.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010576",
+          "SongName": "爱就一个字",
+          "SingerName": "张信哲",
+          "FileName": "220010576.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010307",
+          "SongName": "有一点动心",
+          "SingerName": "张信哲/刘嘉玲",
+          "FileName": "210010307.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10009907",
+          "SongName": "难以抗拒你容颜",
+          "SingerName": "张信哲",
+          "FileName": "210009907.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10016959",
+          "SongName": "过火",
+          "SingerName": "张信哲",
+          "FileName": "210016959.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "32",
+      "title": "军训很苦，回味很甜。",
+      "live_count": 21,
+      "cached_count": 21,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10010828",
+          "SongName": "我是一个兵",
+          "SingerName": "佚名",
+          "FileName": "210010828.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011260",
+          "SongName": "一二三四歌",
+          "SingerName": "阎维文",
+          "FileName": "210011260.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013378",
+          "SongName": "团结就是力量",
+          "SingerName": "佚名",
+          "FileName": "210013378.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10000596",
+          "SongName": "咱当兵的人",
+          "SingerName": "刘斌",
+          "FileName": "210000596.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010642",
+          "SongName": "军中绿花",
+          "SingerName": "小曾",
+          "FileName": "220010642.mkv",
+          "VoiceChannel": "1"
+        }
+      ]
+    },
+    {
+      "id": "31",
+      "title": "苏联老歌，一代中国人的青春记忆。",
+      "live_count": 11,
+      "cached_count": 11,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10023629",
+          "SongName": "莫斯科郊外的晚上",
+          "SingerName": "佚名",
+          "FileName": "210023629.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "20031727",
+          "SongName": "山楂树",
+          "SingerName": "黑鸭子",
+          "FileName": "220031727.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01131214",
+          "SongName": "喀秋莎",
+          "SingerName": "佚名",
+          "FileName": "201131214.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011262",
+          "SongName": "三套车",
+          "SingerName": "佚名",
+          "FileName": "210011262.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01124894",
+          "SongName": "红莓花儿开",
+          "SingerName": "佚名",
+          "FileName": "201124894.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "title": "叠起这发旧的军装，多少回忆都已珍藏",
+      "live_count": 16,
+      "cached_count": 16,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10008628",
+          "SongName": "阿弟去当兵",
+          "SingerName": "小曾",
+          "FileName": "210008628.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10008653",
+          "SongName": "布鞋",
+          "SingerName": "小曾",
+          "FileName": "210008653.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20009997",
+          "SongName": "当兵的那一天",
+          "SingerName": "小曾",
+          "FileName": "220009997.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10008651",
+          "SongName": "回家探亲",
+          "SingerName": "小曾",
+          "FileName": "210008651.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010642",
+          "SongName": "军中绿花",
+          "SingerName": "小曾",
+          "FileName": "220010642.mkv",
+          "VoiceChannel": "1"
+        }
+      ]
+    },
+    {
+      "id": "28",
+      "title": "怀旧",
+      "live_count": 15,
+      "cached_count": 15,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "00514856",
+          "SongName": "爱一次给不完",
+          "SingerName": "张学友",
+          "FileName": "200514856.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "00500330",
+          "SongName": "大地",
+          "SingerName": "Beyond",
+          "FileName": "200500330.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10008156",
+          "SongName": "流浪兄弟",
+          "SingerName": "陈星",
+          "FileName": "210008156.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10010975",
+          "SongName": "信自己",
+          "SingerName": "杜德伟/叶倩文",
+          "FileName": "210010975.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20023442",
+          "SongName": "潇洒走一回",
+          "SingerName": "陶思哲/黄楒灿/丁弼洲/叶倩文",
+          "FileName": "220023442.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "18",
+      "title": "我们新人手挽手，慢步走，心贴心、情比金，款款向我们走来",
+      "live_count": 15,
+      "cached_count": 15,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "00519631",
+          "SongName": "婚礼进行曲",
+          "SingerName": "胡彦斌",
+          "FileName": "200519631.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10004080",
+          "SongName": "选择",
+          "SingerName": "林子祥/叶倩文",
+          "FileName": "210004080.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10032102",
+          "SongName": "今天你要嫁给我",
+          "SingerName": "陶喆/蔡依林",
+          "FileName": "210032102.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20018659",
+          "SongName": "你最珍贵",
+          "SingerName": "张学友/杨千嬅",
+          "FileName": "220018659.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20024064",
+          "SongName": "知心爱人",
+          "SingerName": "傅笛生/任静",
+          "FileName": "220024064.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "17",
+      "title": "我们曾相识在军营",
+      "live_count": 10,
+      "cached_count": 10,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10008620",
+          "SongName": "离开部队的那一天",
+          "SingerName": "小曾",
+          "FileName": "210008620.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "01107878",
+          "SongName": "战友还记得吗",
+          "SingerName": "小曾",
+          "FileName": "201107878.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "01107876",
+          "SongName": "想战友",
+          "SingerName": "小曾",
+          "FileName": "201107876.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013269",
+          "SongName": "我的老班长",
+          "SingerName": "小曾",
+          "FileName": "210013269.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010642",
+          "SongName": "军中绿花",
+          "SingerName": "小曾",
+          "FileName": "220010642.mkv",
+          "VoiceChannel": "1"
+        }
+      ]
+    },
+    {
+      "id": "16",
+      "title": "一首民谣，一个故事",
+      "live_count": 18,
+      "cached_count": 18,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20021827",
+          "SongName": "成都",
+          "SingerName": "赵雷",
+          "FileName": "220021827.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20003119",
+          "SongName": "风吹麦浪",
+          "SingerName": "李健",
+          "FileName": "220003119.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10015024",
+          "SongName": "睡在我上铺的兄弟",
+          "SingerName": "老狼",
+          "FileName": "210015024.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10001262",
+          "SongName": "生如夏花",
+          "SingerName": "朴树",
+          "FileName": "210001262.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10005160",
+          "SongName": "那些花儿",
+          "SingerName": "朴树",
+          "FileName": "210005160.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "15",
+      "title": "女人花，摇曳在红尘中。女人花，随风轻轻摆动",
+      "live_count": 12,
+      "cached_count": 12,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10016991",
+          "SongName": "女人花",
+          "SingerName": "梅艳芳",
+          "FileName": "210016991.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10016381",
+          "SongName": "抱紧眼前人",
+          "SingerName": "梅艳芳",
+          "FileName": "210016381.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10002283",
+          "SongName": "猜心",
+          "SingerName": "黄小琥",
+          "FileName": "210002283.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10009738",
+          "SongName": "泪海",
+          "SingerName": "许茹芸",
+          "FileName": "210009738.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10010221",
+          "SongName": "归来吧",
+          "SingerName": "陈慧娴",
+          "FileName": "210010221.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "title": "70后的自己变得沉默寡言，但喜欢的歌却永远没变",
+      "live_count": 85,
+      "cached_count": 85,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "10016381",
+          "SongName": "抱紧眼前人",
+          "SingerName": "梅艳芳",
+          "FileName": "210016381.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10005768",
+          "SongName": "不惑",
+          "SingerName": "梅艳芳",
+          "FileName": "210005768.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10014782",
+          "SongName": "长藤挂铜铃",
+          "SingerName": "梅艳芳",
+          "FileName": "210014782.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10011063",
+          "SongName": "床前明月光",
+          "SingerName": "梅艳芳",
+          "FileName": "210011063.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "01103791",
+          "SongName": "东山飘雨西山晴",
+          "SingerName": "梅艳芳",
+          "FileName": "201103791.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "title": "苍茫的天下是我的爱，绵绵的青山脚下花正开",
+      "live_count": 36,
+      "cached_count": 36,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "20007295",
+          "SongName": "策马奔腾",
+          "SingerName": "凤凰传奇",
+          "FileName": "220007295.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20018006",
+          "SongName": "策马扬鞭",
+          "SingerName": "凤凰传奇",
+          "FileName": "220018006.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20003793",
+          "SongName": "荷塘月色",
+          "SingerName": "凤凰传奇",
+          "FileName": "220003793.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010901",
+          "SongName": "溜溜的情歌",
+          "SingerName": "凤凰传奇",
+          "FileName": "220010901.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20002033",
+          "SongName": "自由飞翔",
+          "SingerName": "凤凰传奇",
+          "FileName": "220002033.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    },
+    {
+      "id": "1",
+      "title": "祝老妈福寿安康",
+      "live_count": 51,
+      "cached_count": 51,
+      "returned_count": 5,
+      "sample": [
+        {
+          "SongNumber": "01120846",
+          "SongName": "祝寿曲",
+          "SingerName": "佚名",
+          "FileName": "201120846.mkv",
+          "VoiceChannel": "1"
+        },
+        {
+          "SongNumber": "10008424",
+          "SongName": "祝福妈妈",
+          "SingerName": "齐峰",
+          "FileName": "210008424.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10013114",
+          "SongName": "祝寿歌",
+          "SingerName": "佚名",
+          "FileName": "210013114.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "20010627",
+          "SongName": "祝妈妈长寿",
+          "SingerName": "阎维文",
+          "FileName": "220010627.mkv",
+          "VoiceChannel": "0"
+        },
+        {
+          "SongNumber": "10001135",
+          "SongName": "好日子",
+          "SingerName": "宋祖英",
+          "FileName": "210001135.mkv",
+          "VoiceChannel": "0"
+        }
+      ]
+    }
+  ],
+  "playlist_count_mismatches": 1
+}

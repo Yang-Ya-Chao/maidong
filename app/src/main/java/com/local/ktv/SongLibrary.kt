@@ -10,7 +10,7 @@ class SongLibrary {
     private val indexFile = AppPaths.catalogFile
     private val localSongs = mutableListOf<Song>()
     private val remoteSongs = mutableListOf<Song>()
-    @JvmField val muse = MuseDatabase()
+    @JvmField val muse = IgebaCatalog()
 
     fun ensureDirs() {
         rootDir.mkdirs()
@@ -20,45 +20,64 @@ class SongLibrary {
 
     fun catalogFile(): File = indexFile
 
-    fun scanLocal(): List<Song> {
+    @Synchronized fun scanLocal(): List<Song> {
         ensureDirs()
         localSongs.clear()
         scanDir(rootDir)
         scanDir(importDir)
-        File("/storage").listFiles().orEmpty()
-            .filterNot { it.name == "emulated" || it.name == "self" }
-            .forEach { root ->
-                listOf(File(root, "KTV"), File(root, "songs"))
-                    .filter(File::exists)
-                    .forEach(::scanDir)
+        SongStorage.usbScanError = null
+        if (SongStorage.includeUsb) {
+            runCatching {
+                val media = SongStorage.usbMedia()
+                val matched = muse.songsByFilenames(media.map { it.name }).associateBy { it.filename }
+                media.forEach { item ->
+                    val path = checkNotNull(item.path)
+                    val song = matched[item.name]?.let { Song.fromJson(it.toJson()) } ?: Song.local(path, item.name)
+                    song.path = path
+                    song.filename = item.name
+                    localSongs += song
+                }
+            }.onFailure {
+                SongStorage.usbScanError = it.message ?: "U盘歌曲扫描失败"
+                android.util.Log.w("SongLibrary", "U盘歌曲扫描失败", it)
             }
+        }
         localSongs.sortBy { it.title.orEmpty().lowercase(Locale.ROOT) }
         return localSongs.toList()
     }
 
-    fun loadCachedRemote(): List<Song> {
+    @Synchronized fun loadCachedRemote(): List<Song> {
         remoteSongs.clear()
         runCatching {
             if (indexFile.exists()) {
                 val array = JSONArray(indexFile.readText())
-                repeat(array.length()) { remoteSongs += Song.remote(array.getJSONObject(it)) }
+                repeat(array.length()) {
+                    val song = Song.remote(array.getJSONObject(it))
+                    if (!song.sourceSongNumber.isNullOrBlank()) {
+                        song.downloadUrl = null; song.videoUrl = null
+                        song.originalUrl = null; song.accompanyUrl = null; song.lyricUrl = null
+                        remoteSongs += song
+                    }
+                }
+                val cleaned = JSONArray().apply { remoteSongs.forEach { put(it.toJson()) } }
+                indexFile.writeText(cleaned.toString(2))
             }
         }
         return remoteSongs.toList()
     }
 
-    fun saveRemote(array: JSONArray) {
+    @Synchronized fun saveRemote(array: JSONArray) {
         ensureDirs()
         indexFile.writeText(array.toString(2))
         loadCachedRemote()
     }
 
-    fun clearRemoteCache(): Boolean {
+    @Synchronized fun clearRemoteCache(): Boolean {
         remoteSongs.clear()
         return indexFile.exists() && indexFile.delete()
     }
 
-    fun allSongs(): List<Song> = localSongs + remoteSongs
+    @Synchronized fun allSongs(): List<Song> = localSongs + remoteSongs
 
     fun categories(): List<String> = linkedSetOf("全部").apply {
         allSongs().forEach { add(it.category?.takeIf(String::isNotEmpty) ?: "其他") }
@@ -82,10 +101,12 @@ class SongLibrary {
         return File(rootDir, clean + extension)
     }
 
-    private fun scanDir(dir: File) {
+    private fun scanDir(dir: File, visited: MutableSet<String> = HashSet()) {
+        val canonical = runCatching { dir.canonicalPath }.getOrNull() ?: return
+        if (!visited.add(canonical)) return
         dir.listFiles().orEmpty().forEach { file ->
             when {
-                file.isDirectory -> scanDir(file)
+                file.isDirectory -> scanDir(file, visited)
                 isMedia(file.name) -> localSongs += Song.local(file.absolutePath, file.name)
             }
         }

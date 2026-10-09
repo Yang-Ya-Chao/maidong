@@ -1,0 +1,145 @@
+{
+  "integrity": "ok",
+  "singers": 4807,
+  "matched_portraits": 4647,
+  "official_portrait_fallback": 131,
+  "no_portrait_reference": [
+    {
+      "number": "3187",
+      "name": "合唱"
+    },
+    {
+      "number": "326",
+      "name": "何韵诗"
+    },
+    {
+      "number": "3774",
+      "name": "快四"
+    },
+    {
+      "number": "1745",
+      "name": "Thunder"
+    },
+    {
+      "number": "1685",
+      "name": "Silence"
+    },
+    {
+      "number": "2746",
+      "name": "凡星"
+    },
+    {
+      "number": "462",
+      "name": "李继红"
+    },
+    {
+      "number": "827",
+      "name": "五彩精灵"
+    },
+    {
+      "number": "1422",
+      "name": "Ezen"
+    },
+    {
+      "number": "5172",
+      "name": "孙鸣洁"
+    },
+    {
+      "number": "4321",
+      "name": "刘庆威"
+    },
+    {
+      "number": "1251",
+      "name": "A+乐团"
+    },
+    {
+      "number": "1608",
+      "name": "NAD"
+    },
+    {
+      "number": "828",
+      "name": "五分之一女孩"
+    },
+    {
+      "number": "1123",
+      "name": "李晓然"
+    },
+    {
+      "number": "520",
+      "name": "林静芳"
+    },
+    {
+      "number": "4668",
+      "name": "木推瓜"
+    },
+    {
+      "number": "4445",
+      "name": "卢学叡"
+    },
+    {
+      "number": "487",
+      "name": "李雅婷"
+    },
+    {
+      "number": "1861",
+      "name": "阿松"
+    },
+    {
+      "number": "5496",
+      "name": "王希玲"
+    },
+    {
+      "number": "1666",
+      "name": "RY"
+    },
+    {
+      "number": "1367",
+      "name": "CUTIE"
+    },
+    {
+      "number": "767",
+      "name": "汪惠娟"
+    },
+    {
+      "number": "887",
+      "name": "雅文"
+    },
+    {
+      "number": "444",
+      "name": "雷竞"
+    },
+    {
+      "number": "5408",
+      "name": "王慧莲"
+    },
+    {
+      "number": "872",
+      "name": "徐晓晰"
+    },
+    {
+      "number": "6364",
+      "name": "曾维山"
+    }
+  ],
+  "song_relations_orphans": 0,
+  "playlist_relations_orphans": 0,
+  "playlists_by_type": [
+    [
+      3,
+      63
+    ],
+    [
+      4,
+      7
+    ]
+  ],
+  "packaged_databases": [
+    "assets/igeba_catalog.db",
+    "assets/singer_portraits.db"
+  ],
+  "apk_database_bytes_match_source": {
+    "assets/igeba_catalog.db": true,
+    "assets/singer_portraits.db": true
+  },
+  "no_portrait_reference_count": 29
+}

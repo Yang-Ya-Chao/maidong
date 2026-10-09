@@ -12,9 +12,9 @@ android {
         minSdk 21
         targetSdk 25
         versionCode 4
-        versionName "1.2.3"
+        versionName "2.0.0"
         ndk {
-            // Package each ABI's complete IJK set; never mix individual SOs across the two sets.
+            // 新播放器使用系统解码，不打包旧 IJK 原生库。
             abiFilters "armeabi-v7a", "arm64-v8a"
         }
         def manifestUrl = project.findProperty("GITEE_DATABASE_MANIFEST_URL") ?: ""
@@ -47,6 +47,8 @@ android {
         }
     }
 
+    sourceSets { main { jniLibs.srcDirs = [] } }
+
     // 支持 .ts 视频文件(aapt 不压缩这些文件以避免 SoundPool/MediaPlayer 问题)
     androidResources {
         noCompress 'ts', 'mp3', 'mp4', 'aac', 'm4a', 'flac', 'wav'
@@ -74,22 +76,13 @@ android {
 
 }
 
-// 强制统一 Kotlin 标准库版本,避免 appcompat 与其他依赖的版本冲突
-configurations.all {
-    resolutionStrategy {
-        force "org.jetbrains.kotlin:kotlin-stdlib:1.8.22"
-        force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.8.22"
-        force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.8.22"
-        force "org.jetbrains.kotlin:kotlin-stdlib-common:1.8.22"
-    }
-}
+// Kotlin 标准库使用当前 Kotlin 插件匹配的版本。
 
 dependencies {
-    implementation files('libs/original-ijk-runtime.jar')
+    implementation "androidx.media3:media3-exoplayer:1.5.1"
     implementation "androidx.core:core:1.12.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.zxing:core:3.5.3"
-    implementation "com.liulishuo.okdownload:okdownload:1.0.7"
     testImplementation "junit:junit:4.13.2"
 
 }

@@ -58,7 +58,7 @@ class SongListAdapter(
         mode == renderMode && pageOffset == renderPageOffset
 
     fun adapterPositionFor(focusMarker: String): Int? {
-        val key = focusMarker.removePrefix(FOCUS_PREFIX)
+        val key = focusMarker.removePrefix(FOCUS_PREFIX).substringBefore("|action|")
         val index = songs.indexOfFirst { songKey(it) == key }
         return index.takeIf { it >= 0 }?.div(columns)
     }
@@ -195,6 +195,61 @@ class SongListAdapter(
             }
             addView(icon(R.drawable.ic_delete) { callbacks.onDelete(song) }, LinearLayout.LayoutParams(dp(36), dp(36)))
             configureSongCard(this, song, index)
+            descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
+            val row = this
+            val actions = (0 until childCount).map(::getChildAt).filter { it.isClickable }
+            nextFocusRightId = actions.firstOrNull()?.id ?: id
+            if (index > 0) nextFocusUpId = cardId(index - 1)
+            if (index + 1 < songs.size) nextFocusDownId = cardId(index + 1)
+            fun navigateVertical(key: Int): Boolean {
+                val next = index + if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1
+                if (next !in songs.indices) return false
+                val list = row.parent as? android.widget.ListView ?: return false
+                val visible = list.getChildAt(next - list.firstVisiblePosition)
+                if (visible?.requestFocus() != true) {
+                    list.setSelectionFromTop(next, if (next > index) height else 0)
+                    list.post { list.getChildAt(next - list.firstVisiblePosition)?.requestFocus() }
+                }
+                return true
+            }
+            row.setOnKeyListener { _, key, event ->
+                when (key) {
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (event.action == android.view.KeyEvent.ACTION_DOWN) actions.firstOrNull()?.requestFocus()
+                        actions.isNotEmpty()
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                        if (event.action == android.view.KeyEvent.ACTION_DOWN) navigateVertical(key) else false
+                    else -> false
+                }
+            }
+            actions.forEachIndexed { actionIndex, button ->
+                val name = if (actionIndex == actions.lastIndex) "删除" else when {
+                    state.failed || state.paused -> "重试"
+                    state.downloading -> "暂停"
+                    else -> "播放"
+                }
+                button.setAccessibleFocus(FOCUS_PREFIX + songKey(song) + "|action|" + actionIndex,
+                    "$name，${song.title.orEmpty()}")
+                button.nextFocusLeftId = actions.getOrNull(actionIndex - 1)?.id ?: row.id
+                button.nextFocusRightId = actions.getOrNull(actionIndex + 1)?.id ?: button.id
+                button.setOnKeyListener { _, key, event ->
+                    when (key) {
+                        android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                                val target = if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+                                    actions.getOrNull(actionIndex - 1) ?: row
+                                else actions.getOrNull(actionIndex + 1) ?: button
+                                target.requestFocus()
+                            }
+                            true
+                        }
+                        android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                            if (event.action == android.view.KeyEvent.ACTION_DOWN) navigateVertical(key) else false
+                        else -> false
+                    }
+                }
+            }
         }
     }
 
