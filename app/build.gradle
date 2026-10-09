@@ -27,7 +27,7 @@ android {
     // 签名配置:使用已有的 ktv_keystore.jks
     signingConfigs {
         release {
-            storeFile file("../../ktv_keystore.jks")
+            storeFile rootProject.file("ktv_keystore.jks")
             storePassword "123456"
             keyAlias "ktv"
             keyPassword "123456"

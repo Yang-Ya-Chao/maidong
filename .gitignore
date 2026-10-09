@@ -21,3 +21,4 @@ gradle.properties
 .tmp_muse.db
 tools/__pycache__/
 **/__history/
+*.jks
