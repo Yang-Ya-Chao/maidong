@@ -76,8 +76,10 @@ class KtvVideoView @JvmOverloads constructor(
     val currentPosition: Int get() = engine?.currentPosition ?: 0
     val duration: Int get() = engine?.duration ?: 0
 
-    internal fun updateVideoSize(width: Int, height: Int) {
-        surfaceView.setVideoSize(width, height)
+    fun setScaleMode(mode: String) = surfaceView.setScaleMode(mode)
+
+    internal fun updateVideoSize(width: Int, height: Int, pixelRatio: Float = 1f) {
+        surfaceView.setVideoSize(width, height, pixelRatio)
     }
 
     internal fun installSurfaceCallback(callback: SurfaceHolder.Callback) {
@@ -89,28 +91,33 @@ class KtvVideoView @JvmOverloads constructor(
     internal fun currentHolder(): SurfaceHolder = surfaceView.holder
 }
 
-/** Resize behavior ported from the original ResizeSurfaceView, scale mode 1. */
+/** Surface buffers retain source resolution; view bounds apply the selected display ratio. */
 private class KtvSurfaceView(context: Context) : SurfaceView(context) {
     private var videoWidth = 0
     private var videoHeight = 0
+    private var pixelRatio = 1f
+    private var scaleMode = "适应屏幕"
 
-    fun setVideoSize(width: Int, height: Int) {
+    fun setVideoSize(width: Int, height: Int, pixelRatio: Float) {
         videoWidth = width
         videoHeight = height
+        this.pixelRatio = pixelRatio
         if (width > 0 && height > 0) holder.setFixedSize(width, height)
+        requestLayout()
+    }
+
+    fun setScaleMode(mode: String) {
+        scaleMode = mode
         requestLayout()
     }
 
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         val maxWidth = getDefaultSize(videoWidth, widthMeasureSpec).coerceAtLeast(1)
         val maxHeight = getDefaultSize(videoHeight, heightMeasureSpec).coerceAtLeast(1)
-        var measuredWidth = maxWidth
-        var measuredHeight = measuredWidth * 9 / 16
-        if (measuredHeight > maxHeight) {
-            measuredHeight = maxHeight
-            measuredWidth = measuredHeight * 16 / 9
-        }
-        setMeasuredDimension(measuredWidth.coerceAtLeast(1), measuredHeight.coerceAtLeast(1))
+        val size = VideoGeometry.measure(maxWidth, maxHeight, videoWidth, videoHeight, pixelRatio, scaleMode)
+        setMeasuredDimension(size.width, size.height)
+        Log.d("KtvVideoView", "Video layout mode=$scaleMode source=${videoWidth}x$videoHeight " +
+            "pixelRatio=$pixelRatio bounds=${size.width}x${size.height}")
     }
 }
 
@@ -177,6 +184,7 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
     private var errorListener: MediaPlayer.OnErrorListener? = null
     private var videoWidth = 0
     private var videoHeight = 0
+    private var videoPixelRatio = 1f
     private val player: ExoPlayer
 
     init {
@@ -204,7 +212,8 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
             override fun onVideoSizeChanged(size: VideoSize) {
                 videoWidth = size.width
                 videoHeight = size.height
-                targetView?.updateVideoSize(videoWidth, videoHeight)
+                videoPixelRatio = size.pixelWidthHeightRatio
+                targetView?.updateVideoSize(videoWidth, videoHeight, videoPixelRatio)
             }
             override fun onPlayerError(error: PlaybackException) {
                 prepared = false
@@ -228,7 +237,7 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
         targetView = view
         view.bind(this)
         view.keepScreenOn = true
-        view.updateVideoSize(videoWidth, videoHeight)
+        view.updateVideoSize(videoWidth, videoHeight, videoPixelRatio)
         view.installSurfaceCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 if (targetView === view && !released) player.setVideoSurface(holder.surface)

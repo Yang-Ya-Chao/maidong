@@ -970,6 +970,7 @@ class MainActivity : AppCompatActivity() {
         // 用 FrameLayout 包裹共享播放 Surface,以便叠加控制层
         val playerContainer = FrameLayout(this)
         player = KtvVideoView(this).also {
+            it.setScaleMode(screenMode)
             it.bind(playbackEngine)
             playbackEngine.attach(it)
         }
@@ -2411,7 +2412,6 @@ class MainActivity : AppCompatActivity() {
             indicator.alpha = 1f
             indicator.visibility = View.VISIBLE
             renderMuteButton()
-            applySystemMusicVolume()
             applyPlaybackMode()
             saveState()
             main.removeCallbacks(hideFullScreenVolumeIndicatorRunnable)
@@ -2568,7 +2568,6 @@ class MainActivity : AppCompatActivity() {
             } else {
                 musicVolume = muteBeforeVol
             }
-            applySystemMusicVolume()
             applyPlaybackMode()
             seekMusicVol.setProgress(musicVolume)
             tvMusicVol.setText(musicVolume.toString())
@@ -2604,7 +2603,6 @@ class MainActivity : AppCompatActivity() {
 
             override fun onStartTrackingTouch(s: SeekBar?) {}
             override fun onStopTrackingTouch(s: SeekBar?) {
-                applySystemMusicVolume()
                 applyPlaybackMode()
                 saveState()
             }
@@ -2617,7 +2615,6 @@ class MainActivity : AppCompatActivity() {
             seekMusicVol.setProgress(80)
             micVolume = 60
             musicVolume = 80
-            applySystemMusicVolume()
             applyPlaybackMode()
             saveState()
             tvMicVol.setText("60")
@@ -4133,12 +4130,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun applySystemMusicVolume() {
-        if (audioManager == null) return
-        val max = audioManager!!.getStreamMaxVolume(AudioManager.STREAM_MUSIC)
-        val value = max(0, min(max, (musicVolume * max) / 100))
-        audioManager!!.setStreamVolume(AudioManager.STREAM_MUSIC, value, 0)
-    }
 
     private fun clamp(value: Int, min: Int, max: Int): Int {
         return max(min, min(max, value))
@@ -4966,6 +4957,9 @@ class MainActivity : AppCompatActivity() {
         } catch (ignored: Exception) {
         }
         applyVocalVolume()
+        Log.i(TAG, "Playback volume music=$musicVolume pcm=${musicVolume / 100f} " +
+            "system=${audioManager?.getStreamVolume(AudioManager.STREAM_MUSIC)}/" +
+            "${audioManager?.getStreamMaxVolume(AudioManager.STREAM_MUSIC)}")
         if (embedded && vocalPlayerPrepared) {
             val mainPosition = videoPlayer.currentPosition
             val alternatePosition = embeddedVocalEngine?.currentPosition ?: mainPosition
@@ -6200,6 +6194,7 @@ class MainActivity : AppCompatActivity() {
         homeVideoPlaceholder?.visibility = View.GONE
         subPageVideoPlaceholder?.visibility = View.GONE
         val persistentVideo = KtvVideoView(this).apply {
+            setScaleMode(screenMode)
             setOnClickListener {
                 if (isFullScreen) exitFullScreenPlayer() else showFullScreenPlayer()
             }
@@ -8288,12 +8283,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showScreenDialog() {
-        val items = arrayOf<String>("16 : 9", "4 : 3", "全屏")
-        val selected = when (screenMode) {
-            "16 : 9" -> 0
-            "4 : 3" -> 1
-            else -> 2
-        }
+        val items = arrayOf("适应屏幕", "16 : 9", "4 : 3", "全屏")
+        val selected = items.indexOf(screenMode).coerceAtLeast(0)
         var pending = selected
         val choices = dialogSingleChoiceGroup(items, selected) { pending = it }
         AlertDialog.Builder(this)
@@ -8540,12 +8531,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyScreenMode() {
-        if (player != null) {
-            try {
-                applyPlaybackMode()
-            } catch (ignored: Exception) {
-            }
-        }
+        player?.setScaleMode(screenMode)
     }
 
     /**
