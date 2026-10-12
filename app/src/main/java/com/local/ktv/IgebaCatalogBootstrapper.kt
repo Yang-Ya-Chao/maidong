@@ -126,8 +126,8 @@ object IgebaCatalogBootstrapper {
     private fun insert(db: SQLiteDatabase, table: String, values: ContentValues) {
         db.insertWithOnConflict(table,null,values,SQLiteDatabase.CONFLICT_IGNORE)
     }
-    private fun fullPinyin(name: String): String = name.map { chars.optString(it.toString(),it.toString()) }.joinToString("").uppercase(Locale.ROOT)
-    private fun initials(name: String): String = name.map { chars.optString(it.toString(),it.toString()).take(1) }.joinToString("").uppercase(Locale.ROOT)
+    internal fun fullPinyin(name: String): String = name.map { chars.optString(it.toString(),it.toString()) }.joinToString("").uppercase(Locale.ROOT)
+    internal fun initials(name: String): String = name.map { chars.optString(it.toString(),it.toString()).take(1) }.joinToString("").uppercase(Locale.ROOT)
     private fun putSong(db: SQLiteDatabase, row: JSONObject, order: Int) {
         val name=row.optString("SongName")
         insert(db,"source_songs",ContentValues().apply {

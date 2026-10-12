@@ -355,6 +355,8 @@ class MainActivity : AppCompatActivity() {
             refreshLibrary {
                 when (browseMode) {
                     "local" -> loadLocalCatalogPage()
+                    "search" -> loadBrowsePage()
+                    "quick" -> loadQuickSearchPage(activeSearchQuery)
                     "settings_section" -> if (browseParam == "1") showSettingsSection(1, false)
                 }
             }
@@ -366,7 +368,6 @@ class MainActivity : AppCompatActivity() {
             main.postDelayed(storageRefreshRunnable, 700L)
         }
     }
-    private var pendingUsbDownload = false
     private var autoDeleteSongs = true
     private val cacheCleanupLock = Any()
     @Volatile private var protectedCacheNames: Set<String> = emptySet()
@@ -566,26 +567,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    @Deprecated("Deprecated in Android")
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode != 712 || resultCode != RESULT_OK) return
-        val uri = data?.data ?: return
-        val saveToUsb = pendingUsbDownload
-        val flags = data.flags
-        io.execute {
-            val result = runCatching { SongStorage.persistUsbTree(uri, flags, saveToUsb) }
-            main.post {
-                result.onSuccess {
-                    store.usbTreeUri = uri.toString()
-                    if (saveToUsb) store.downloadToUsb = true
-                    saveState()
-                    refreshLibrary { showSettingsSection(1, false) }
-                    toast(if (saveToUsb) "新下载将保存到U盘" else "已选择U盘歌曲文件夹")
-                }.onFailure { toast(it.message ?: "U盘目录不可用") }
-            }
-        }
-    }
 
     override fun onDestroy() {
         if (storageReceiverRegistered) {
@@ -3437,18 +3418,8 @@ class MainActivity : AppCompatActivity() {
         val page = (query["page"]?.toIntOrNull() ?: 1).coerceAtLeast(1)
         val pageSize = (query["pageSize"]?.toIntOrNull() ?: 20).coerceIn(1, 50)
         val offset = (page - 1) * pageSize
-        val songs = if (library.muse.isAvailable() && keyword.isNotBlank()) {
-            if (type == "singer") library.muse.searchSongsBySingerKeyword(keyword, offset, pageSize + 1)
-            else library.muse.searchSongs(keyword, offset, pageSize + 1)
-        } else {
-            library.allSongs().asSequence().filter { song ->
-                isVisibleSong(song) && keyword.isNotBlank() && if (type == "singer") {
-                    song.singer.orEmpty().contains(keyword, true)
-                } else {
-                    (song.title + " " + song.pinyin).contains(keyword, true)
-                }
-            }.drop(offset).take(pageSize + 1).toMutableList()
-        }
+        val songs = if (keyword.isBlank()) emptyList() else
+            library.search(keyword, offset, pageSize + 1, singerOnly = type == "singer").songs
         val hasMore = songs.size > pageSize
         val pageSongs = songs.take(pageSize)
         val array = JSONArray()
@@ -7420,21 +7391,15 @@ class MainActivity : AppCompatActivity() {
         val requestedPage = browsePage
         val requestedQuery = query.trim()
         io.execute {
-            val songs = if (requestedQuery.isEmpty()) {
-                library.muse.hotSongs(requestedPage * 6, 6)
-            } else {
-                library.muse.searchSongs(requestedQuery, requestedPage * 6, 6)
-            }
+            val searchResult = if (requestedQuery.isEmpty()) null
+                else library.search(requestedQuery, requestedPage * 6, 6)
+            val songs = searchResult?.songs ?: library.muse.hotSongs(requestedPage * 6, 6)
             val singers = if (requestedQuery.isEmpty()) {
                 library.muse.singers("", "", requestedPage * 4, 4)
             } else {
                 library.muse.searchSingers(requestedQuery, "", "", requestedPage * 4, 4)
             }
-            val total = if (requestedQuery.isEmpty()) {
-                library.muse.songCount()
-            } else {
-                library.muse.searchSongCount(requestedQuery)
-            }
+            val total = searchResult?.total ?: library.muse.songCount()
             main.post {
                 if (requestVersion != browseRequestVersion || browseMode != "quick" ||
                     browsePage != requestedPage || activeSearchQuery != requestedQuery
@@ -7880,55 +7845,55 @@ class MainActivity : AppCompatActivity() {
     private fun networkStatusText(): String = if (isNetworkConnected()) "已连接" else "未连接"
 
     private fun chooseUsbFolder(saveDownloads: Boolean, rootPath: String? = null) {
-        if (rootPath == null) {
-            val roots = runCatching { SongStorage.usbRoots() }.getOrElse {
-                toast(it.message ?: "无法读取U盘"); return
-            }
-            if (roots.size > 1) {
-                val labels = roots.map { root ->
-                    val capacity = runCatching {
-                        SongStorage.capacity(SongStorage.Choice(usb = true, tree = Uri.fromFile(root).toString()))
-                    }.getOrNull()
-                    "U盘 ${root.name}  " + (capacity?.let { "可用 ${formatSize(it.available)} / ${formatSize(it.total)}" } ?: "容量不可读")
-                }.toTypedArray()
-                AlertDialog.Builder(this).setTitle("选择U盘")
-                    .setItems(labels) { _, which -> chooseUsbFolder(saveDownloads, roots[which].absolutePath) }
-                    .setNegativeButton("取消", null).showForTv()
-                return
-            }
-        }
         val previousPaths = library.allSongs().mapNotNull { it.path }.toSet()
         busy(true, "正在检测U盘...")
         io.execute {
-            val result = runCatching { SongStorage.detectUsbRoot(writable = true, preferredRoot = rootPath) }
+            val roots = runCatching { SongStorage.usbRoots() }
             main.post {
-                busy(false, "")
-                result.onSuccess { root ->
-                    store.usbTreeUri = root
-                    if (saveDownloads) store.downloadToUsb = true
-                    // 主动使用U盘时同步启用读取，避免旧设置导致扫描为空。
-                    showUsbSongs = true
-                    saveState()
-                    Log.i(TAG, "USB selected root=$root cache=maidongktv/video/cloud-song saveDownloads=$saveDownloads")
-                    refreshLibrary {
-                        if (saveDownloads) {
-                            showSettingsSection(1, false)
-                            toast("新下载将保存到U盘 maidongktv/video/cloud-song")
-                        } else if (SongStorage.usbScanError == null) {
-                            val folder = File(checkNotNull(Uri.parse(root).path), "maidongktv").absolutePath + File.separator
-                            val paths = library.allSongs().mapNotNull { it.path }
-                                .filter { it.startsWith(folder) }.distinct()
-                            val added = paths.count { it !in previousPaths }
-                            if (paths.isNotEmpty()) {
-                                showLocalPage()
-                                toast("U盘扫描完成：找到 ${paths.size} 首，新增 $added 首")
-                            } else {
-                                toast("已创建U盘 maidongktv 目录，未找到歌曲，请放入歌曲后重新扫描")
+                roots.onSuccess { available ->
+                    if (saveDownloads && rootPath == null && available.size > 1) {
+                        busy(false, "")
+                        AlertDialog.Builder(this).setTitle("选择U盘")
+                            .setItems(available.map { "U盘 ${it.name}" }.toTypedArray()) { _, which ->
+                                chooseUsbFolder(true, available[which].absolutePath)
+                            }.setNegativeButton("取消", null).showForTv()
+                    } else {
+                        io.execute {
+                            val result = runCatching {
+                                SongStorage.detectUsbRoot(writable = saveDownloads, preferredRoot = rootPath)
                             }
-                            Log.i(TAG, "USB scan completed songs=${paths.size} added=$added")
+                            main.post {
+                                busy(false, "")
+                                result.onSuccess { root ->
+                                    store.usbTreeUri = root
+                                    if (saveDownloads) store.downloadToUsb = true
+                                    showUsbSongs = true
+                                    saveState()
+                                    refreshLibrary {
+                                        if (saveDownloads) {
+                                            showSettingsSection(1, false)
+                                            toast("新下载将保存到U盘 ${UsbMountDiscovery.SONG_DIRECTORY}")
+                                        } else {
+                                            showLocalPage()
+                                            if (SongStorage.usbScanError == null) {
+                                                val folders = available.map {
+                                                    File(it, UsbMountDiscovery.SONG_DIRECTORY).absolutePath + File.separator
+                                                }
+                                                val paths = library.allSongs().mapNotNull { it.path }
+                                                    .filter { path -> folders.any(path::startsWith) }.distinct()
+                                                val added = paths.count { it !in previousPaths }
+                                                toast("U盘扫描完成：找到 ${paths.size} 首，新增 $added 首")
+                                            }
+                                        }
+                                    }
+                                }.onFailure { toast(it.message ?: "U盘不可用，请检查连接和读取权限") }
+                            }
                         }
                     }
-                }.onFailure { toast(it.message ?: "U盘不可用，请检查连接和存储权限") }
+                }.onFailure {
+                    busy(false, "")
+                    toast(it.message ?: "无法读取U盘")
+                }
             }
         }
     }
@@ -8681,7 +8646,7 @@ class MainActivity : AppCompatActivity() {
      * 加载浏览分页数据
      */
     private fun loadBrowsePage() {
-        if (!library.muse.isAvailable()) {
+        if (!library.muse.isAvailable() && browseMode != "search") {
             catalogRefreshPending = true
             busy(true, "曲库加载中...")
             return
@@ -8707,7 +8672,9 @@ class MainActivity : AppCompatActivity() {
             requestedPage,
             pageSize,
         )
-        val cached = synchronized(browsePageCache) { browsePageCache[key] }
+        // 搜索包含可插拔介质，不复用旧页面，避免加歌/拔盘后仍返回过期结果。
+        val cached = if (requestedMode == "search") null
+            else synchronized(browsePageCache) { browsePageCache[key] }
         if (cached != null) {
             applyBrowsePage(key, cached, requestVersion)
             prefetchBrowseNeighbors(key, cached.total)
@@ -8738,6 +8705,10 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun queryBrowsePage(key: BrowseCacheKey): BrowsePageResult {
+            if (key.mode == "search") {
+                val result = library.search(key.param, key.page * key.pageSize, key.pageSize, key.language)
+                return BrowsePageResult(result.songs, result.total)
+            }
             var songs: MutableList<Song>? = null
             val countKey = browseCountKey(key)
             var total = synchronized(browseCountCache) { browseCountCache[countKey] } ?: -1
@@ -8785,10 +8756,6 @@ class MainActivity : AppCompatActivity() {
                         if (total < 0) total = library.muse.countSearchSongsBySinger(key.param, key.searchQuery)
                     }
 
-                    "search" -> {
-                        songs = library.muse.searchSongs(key.param, offset, key.pageSize, key.language)
-                        if (total < 0) total = library.muse.searchSongCount(key.param, key.language)
-                    }
 
                     "favorite" -> {
                         // 收藏功能暂未实现,返回空列表

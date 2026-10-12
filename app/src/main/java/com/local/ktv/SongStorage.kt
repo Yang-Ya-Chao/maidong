@@ -39,13 +39,13 @@ internal object SongStorage {
     fun choice(): Choice {
         val preferred = selected
         if (!preferred.usb) return preferred
-        val roots = usbRoots()
-        if (roots.isEmpty()) return preferred.copy(usb = false, tree = "")
         val uri = Uri.parse(preferred.tree)
+        val roots = usbRoots()
         if (uri.scheme == "content") {
-            return if (runCatching { validateUsbTree(uri, false) }.isSuccess) preferred
-            else preferred.copy(usb = false, tree = "")
+            val root = roots.firstOrNull() ?: return preferred.copy(usb = false, tree = "")
+            return preferred.copy(tree = Uri.fromFile(root).toString())
         }
+        if (roots.isEmpty()) return preferred.copy(usb = false, tree = "")
         val saved = uri.path?.let { runCatching { File(it).canonicalFile }.getOrNull() }
         val root = roots.firstOrNull { it == saved } ?: return preferred.copy(usb = false, tree = "")
         return preferred.copy(tree = Uri.fromFile(root).toString())
@@ -75,23 +75,43 @@ internal object SongStorage {
         }
     }
 
-    /** Restrict the USB setting to the system external-volume provider, excluding internal storage. */
+    /** 自动发现系统挂载的可移动卷；文件夹授权路径不依赖该列表。 */
     fun usbRoots(): List<File> {
         val app = KtvApplication.getInstance()
+        val primary = runCatching { android.os.Environment.getExternalStorageDirectory().canonicalFile }.getOrNull()
         val roots = linkedSetOf<File>()
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
-            val manager = app.getSystemService(android.os.storage.StorageManager::class.java)
-            manager?.storageVolumes?.filter { it.isRemovable &&
-                it.state in setOf(android.os.Environment.MEDIA_MOUNTED, android.os.Environment.MEDIA_MOUNTED_READ_ONLY) }
-                ?.mapNotNull { it.directory }?.forEach { roots += it.canonicalFile }
-        }
-        app.getExternalFilesDirs(null).filterNotNull().forEach { folder ->
-            if (runCatching { android.os.Environment.isExternalStorageRemovable(folder) }.getOrDefault(false)) {
-                val path = folder.absolutePath.substringBefore("/Android/")
-                if (path != folder.absolutePath) roots += File(path).canonicalFile
+        fun add(candidate: File) {
+            runCatching {
+                val folder = candidate.canonicalFile
+                if (primary != null && (folder == primary ||
+                        folder.path.startsWith(primary.path + File.separator))) return@runCatching
+                if (folder.isDirectory && folder.canRead() && folder.listFiles() != null) roots += folder
             }
         }
-        return roots.filter { it.isDirectory }.sortedBy { it.absolutePath }
+        if (android.os.Build.VERSION.SDK_INT >= 30) {
+            runCatching {
+                val manager = app.getSystemService(android.os.storage.StorageManager::class.java)
+                manager?.storageVolumes?.filter { it.isRemovable &&
+                    it.state in setOf(android.os.Environment.MEDIA_MOUNTED, android.os.Environment.MEDIA_MOUNTED_READ_ONLY) }
+                    ?.mapNotNull { it.directory }?.forEach(::add)
+            }
+        }
+        runCatching {
+            app.getExternalFilesDirs(null).filterNotNull().forEach { folder ->
+                if (runCatching { android.os.Environment.isExternalStorageRemovable(folder) }.getOrDefault(false)) {
+                    val path = folder.absolutePath.substringBefore("/Android/")
+                    if (path != folder.absolutePath) add(File(path))
+                }
+            }
+        }
+        // 较旧系统或厂家卷未出现在应用专属目录列表时，补充进程可见挂载点。
+        runCatching { File("/proc/self/mountinfo").readText() }.getOrNull()?.let { mounts ->
+            UsbMountDiscovery.candidates(mounts).forEach { add(File(it)) }
+        }
+        return roots.filter { folder ->
+            !folder.path.startsWith("/mnt/media_rw/") ||
+                roots.none { it.path.startsWith("/storage/") && it.name == folder.name }
+        }.sortedBy { it.absolutePath }
     }
 
     private fun directUsbRoot(uri: Uri): File {
@@ -102,7 +122,7 @@ internal object SongStorage {
     }
 
     private fun usbCacheFolder(root: File): File {
-        val cache = File(root, "maidongktv/video/cloud-song").canonicalFile
+        val cache = UsbMountDiscovery.songDirectory(root)
         check(cache.path.startsWith(root.canonicalPath + File.separator)) { "U盘歌曲目录无效" }
         return cache
     }
@@ -118,9 +138,10 @@ internal object SongStorage {
         var lastError: Throwable? = null
         candidates.forEach { root ->
             try {
-                val cache = usbCacheFolder(root)
-                check(cache.isDirectory || cache.mkdirs()) { "无法创建U盘 maidongktv 目录，请检查写入权限或只读状态" }
+                check(root.canRead() && root.listFiles() != null) { "无法读取U盘，请检查存储权限" }
                 if (writable) {
+                    val cache = usbCacheFolder(root)
+                    check(cache.isDirectory || cache.mkdirs()) { "无法创建U盘 maidongktv 目录，请检查写入权限或只读状态" }
                     val probe = File.createTempFile(".maidong-write-", ".tmp", cache)
                     try {
                         RandomAccessFile(probe, "rw").use { file -> file.write(1); file.fd.sync() }
@@ -139,9 +160,10 @@ internal object SongStorage {
             if (writable) check(usbCacheFolder(root).canWrite()) { "U盘歌曲目录不可写，请重新选择U盘存储" }
             return
         }
-        check(uri.authority == EXTERNAL_PROVIDER && DocumentsContract.isTreeUri(uri)) { "请选择U盘中的歌曲文件夹" }
-        val volume = DocumentsContract.getTreeDocumentId(uri).substringBefore(':')
-        check(volume.isNotBlank() && volume.lowercase() !in setOf("primary", "home", "downloads")) { "请选择U盘文件夹，不能选择本机存储" }
+        check(uri.scheme == "content" && DocumentsContract.isTreeUri(uri)) { "请选择U盘中的歌曲文件夹" }
+        check(UsbDocumentPolicy.acceptsFolder(uri.authority, DocumentsContract.getTreeDocumentId(uri))) {
+            "请选择U盘文件夹，不能选择本机存储"
+        }
         val permission = resolver.persistedUriPermissions.firstOrNull { it.uri == uri }
         check(permission?.isReadPermission == true && (!writable || permission.isWritePermission)) { "U盘目录授权已失效，请重新选择文件夹" }
         val root = DocumentsContract.buildDocumentUriUsingTree(uri, DocumentsContract.getTreeDocumentId(uri))
@@ -188,7 +210,10 @@ internal object SongStorage {
         val root = if (choice.usb) {
             val tree = Uri.parse(choice.tree)
             if (tree.scheme == "file") directUsbRoot(tree) else {
-                check(choice.tree.isNotBlank() && tree.authority == EXTERNAL_PROVIDER && DocumentsContract.isTreeUri(tree)) { "U盘目录无效" }
+                validateUsbTree(tree, false)
+                // 厂家/插件提供器没有 /storage/卷标 映射，通过实际写入句柄检查容量。
+                if (tree.authority != EXTERNAL_PROVIDER) return documentCapacity(choice)
+                check(choice.tree.isNotBlank() && DocumentsContract.isTreeUri(tree)) { "U盘目录无效" }
                 val volume = DocumentsContract.getTreeDocumentId(tree).substringBefore(':')
                 check(volume.isNotBlank() && volume.lowercase() !in setOf("primary", "home", "downloads") &&
                     '/' !in volume && '\\' !in volume) { "U盘卷标无效" }
@@ -197,7 +222,7 @@ internal object SongStorage {
         } else AppPaths.cloudSongsDir
         val existing = generateSequence(root) { it.parentFile }.firstOrNull { it.exists() }
             ?: error("保存位置不可用")
-        if (choice.usb) check(existing == root && root.isDirectory) { "U盘未连接或容量不可读" }
+        if (choice.usb && (existing != root || !root.isDirectory)) return documentCapacity(choice)
         val stats = Os.statvfs(existing.absolutePath)
         val unit = stats.f_frsize
         check(unit > 0 && stats.f_blocks <= Long.MAX_VALUE / unit &&
@@ -205,10 +230,29 @@ internal object SongStorage {
         return Capacity(stats.f_bavail * unit, stats.f_blocks * unit)
     }
 
+    private fun documentCapacity(choice: Choice): Capacity {
+        val directory = checkNotNull(directory(choice, true)) { "U盘歌曲目录不可用" }
+        val probe = directory.child(".maidong-capacity-${java.util.UUID.randomUUID()}.tmp")
+        try {
+            return probe.writer().use { it.capacity() }
+        } finally {
+            check(probe.delete()) { "U盘容量检查文件清理失败" }
+        }
+    }
+
+    private fun descriptorCapacity(stats: android.system.StructStatVfs): Capacity {
+        val unit = stats.f_frsize
+        check(unit > 0 && stats.f_blocks > 0 && stats.f_blocks <= Long.MAX_VALUE / unit &&
+            stats.f_bavail >= 0 && stats.f_bavail <= Long.MAX_VALUE / unit) { "U盘容量信息无效" }
+        return Capacity(stats.f_bavail * unit, stats.f_blocks * unit)
+    }
+
     fun volumeKey(choice: Choice): String = if (choice.usb) {
         val tree = Uri.parse(choice.tree)
         if (tree.scheme == "file") "usb:" + directUsbRoot(tree).absolutePath
-        else "usb:" + DocumentsContract.getTreeDocumentId(tree).substringBefore(':').lowercase()
+        else "usb:${tree.authority}:" + if (tree.authority == EXTERNAL_PROVIDER)
+            DocumentsContract.getTreeDocumentId(tree).substringBefore(':').lowercase()
+        else "provider" // 无法推断物理卷时，同一提供器共享预算，避免重复预留空间。
     } else "local"
 
     class Directory(val file: File? = null, val document: Uri? = null) {
@@ -275,10 +319,7 @@ internal object SongStorage {
             check(file.parentFile?.let { it.exists() || it.mkdirs() } == true) { "无法创建歌曲目录" }
             val handle = RandomAccessFile(file, "rw")
             return Output(handle.channel, handle) {
-                val stats = Os.fstatvfs(handle.fd)
-                val unit = stats.f_frsize
-                check(unit > 0 && stats.f_bavail >= 0 && stats.f_bavail <= Long.MAX_VALUE / unit) { "保存位置容量无效" }
-                stats.f_bavail * unit
+                descriptorCapacity(Os.fstatvfs(handle.fd))
             }
         }
         override fun delete(): Boolean = !file.exists() || file.delete()
@@ -315,10 +356,7 @@ internal object SongStorage {
                 stream.channel.position(0) // Reject a pipe-backed provider: resume must be seekable.
                 val fd = descriptor.fileDescriptor
                 return Output(stream.channel, stream) {
-                    val stats = Os.fstatvfs(fd)
-                    val block = stats.f_frsize
-                    check(block > 0 && stats.f_bavail <= Long.MAX_VALUE / block) { "U盘容量信息无效" }
-                    stats.f_bavail * block
+                    descriptorCapacity(Os.fstatvfs(fd))
                 }
             } catch (error: Throwable) {
                 stream.close()
@@ -340,7 +378,10 @@ internal object SongStorage {
         }
     }
 
-    class Output(private val channel: FileChannel, private val owner: Closeable, val available: () -> Long) : Closeable {
+    class Output(private val channel: FileChannel, private val owner: Closeable,
+                 private val capacityReader: () -> Capacity) : Closeable {
+        fun capacity(): Capacity = capacityReader()
+        fun available(): Long = capacity().available
         fun position(offset: Long) { channel.position(offset) }
         fun reset() { channel.truncate(0); channel.position(0) }
         fun size(): Long = channel.size()
@@ -355,14 +396,9 @@ internal object SongStorage {
     fun valid(media: Media): Boolean = runCatching {
         if (media is FileMedia) return@runCatching SongFileValidator.inspect(media.file, SongFileValidator.requiresTransportStream(media.file)).valid
         val info = media.info() ?: return@runCatching false
-        if (info.directory || info.bytes < SongFileValidator.MIN_VALID_FILE_SIZE) return@runCatching false
-        val header = media.readAt(0, 12)
-        val signature = header.take(4).toByteArray()
-        signature.contentEquals(byteArrayOf(0x1a, 0x45, 0xdf.toByte(), 0xa3.toByte())) ||
-            String(header, 4, 4, Charsets.US_ASCII) == "ftyp" ||
-            String(header, 0, 3, Charsets.US_ASCII) == "ID3" ||
-            String(header, 0, 4, Charsets.US_ASCII) in listOf("fLaC", "RIFF", "OggS") ||
-            (header[0].toInt() and 0xff == 0xff && header[1].toInt() and 0xe0 == 0xe0)
+        if (info.directory) return@runCatching false
+        val header = media.readAt(0, SongFileValidator.MIN_VALID_FILE_SIZE.toInt())
+        UsbDocumentPolicy.validHeader(header, info.bytes)
     }.getOrDefault(false)
 
     fun fromPath(path: String): Media = if (path.startsWith("content://")) {
@@ -373,46 +409,18 @@ internal object SongStorage {
         DocumentMedia(uri, name, null)
     } else FileMedia(File(path))
 
-    fun usbMedia(treeString: String = choice().tree): List<Media> {
-        if (treeString.isBlank()) return emptyList()
-        val tree = Uri.parse(treeString)
-        if (tree.scheme == "file") {
-            val root = directUsbRoot(tree)
-            // 扫描入口也建立标准目录，插入新U盘后无需再次选择文件夹。
-            runCatching {
-                val cache = usbCacheFolder(root)
-                check(cache.isDirectory || cache.mkdirs()) { "无法创建U盘歌曲目录" }
-            }.onFailure { android.util.Log.w("SongStorage", "创建U盘目录失败：${it.message}") }
-            val folder = File(root, "maidongktv").canonicalFile
-            check(folder.path.startsWith(root.canonicalPath + File.separator)) { "U盘歌曲目录无效" }
-            if (!folder.exists()) return emptyList()
-            val pending = java.util.ArrayDeque<File>().apply { add(folder) }
-            val visited = HashSet<String>()
-            val result = ArrayList<Media>()
-            while (pending.isNotEmpty()) {
-                val directory = pending.removeFirst().canonicalFile
-                if (!directory.path.startsWith(folder.path + File.separator) && directory != folder) continue
-                if (!visited.add(directory.path)) continue
-                checkNotNull(directory.listFiles()) { "无法读取U盘 maidongktv 目录，请检查存储权限" }.forEach { file ->
-                    if (file.isDirectory) pending.add(file)
-                    else if (file.extension.lowercase() in setOf("mkv", "mp4", "mpg", "mpeg", "avi", "mp3", "flac", "wav")) result += FileMedia(file)
-                }
-            }
-            return result
-        }
-        validateUsbTree(tree, false)
-        val root = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree))
-        val visited = mutableSetOf<String>()
+    fun usbMedia(): List<Media> {
         val result = ArrayList<Media>()
-        fun scan(directory: Directory) {
-            val identity = directory.document?.toString() ?: directory.file!!.canonicalPath
-            if (!visited.add(identity)) return
-            directory.entries().forEach { item ->
-                if (item.info()?.directory == true) scan(Directory(document = Uri.parse(checkNotNull(item.path))))
-                else if (item.name.substringAfterLast('.', "").lowercase() in setOf("mkv", "mp4", "mpg", "mpeg", "avi", "mp3", "flac", "wav")) result += item
+        val failures = ArrayList<String>()
+        usbRoots().forEach { root ->
+            runCatching { UsbMountDiscovery.songs(root) }.onSuccess { files ->
+                result += files.map(::FileMedia)
+            }.onFailure {
+                failures += it.message ?: "U盘歌曲扫描失败"
+                android.util.Log.w("SongStorage", "U盘保存目录扫描失败", it)
             }
         }
-        scan(Directory(document = root))
-        return result
+        if (failures.isNotEmpty()) usbScanError = failures.distinct().joinToString("；")
+        return result.distinctBy { it.path }
     }
 }

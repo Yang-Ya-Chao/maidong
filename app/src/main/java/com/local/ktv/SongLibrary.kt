@@ -42,6 +42,11 @@ class SongLibrary {
                 android.util.Log.w("SongLibrary", "U盘歌曲扫描失败", it)
             }
         }
+        localSongs.filter { it.sourceSongNumber.isNullOrBlank() }.forEach { song ->
+            val text = "${song.title.orEmpty()} ${song.singer.orEmpty()}"
+            song.pinyin = IgebaCatalogBootstrapper.initials(text)
+            song.pinyinFull = IgebaCatalogBootstrapper.fullPinyin(text)
+        }
         localSongs.sortBy { it.title.orEmpty().lowercase(Locale.ROOT) }
         return localSongs.toList()
     }
@@ -78,6 +83,27 @@ class SongLibrary {
     }
 
     @Synchronized fun allSongs(): List<Song> = localSongs + remoteSongs
+
+    internal fun search(query: String, offset: Int, limit: Int, language: String? = null,
+                        singerOnly: Boolean = false): SongSearch.Page {
+        val snapshot = synchronized(this) { localSongs.toList() }
+        val available = muse.isAvailable()
+        // 已按目录编号识别的文件由目录结果返回，避免重复；保留其本地播放路径。
+        val imported = snapshot.filter {
+            (!available || it.sourceSongNumber.isNullOrBlank()) &&
+                SongSearch.matches(it, query, language, singerOnly)
+        }
+        val count = if (!available) 0 else if (singerOnly) muse.searchSongsBySingerKeywordCount(query)
+            else muse.searchSongCount(query, language)
+        val localByNumber = snapshot.filter { !it.sourceSongNumber.isNullOrBlank() }
+            .associateBy { it.sourceSongNumber }
+        return SongSearch.page(imported, count, offset, limit) { from, size ->
+            val songs = if (singerOnly) muse.searchSongsBySingerKeyword(query, from, size)
+                else muse.searchSongs(query, from, size, language)
+            songs.forEach { song -> localByNumber[song.sourceSongNumber]?.let { song.path = it.path } }
+            songs
+        }
+    }
 
     fun categories(): List<String> = linkedSetOf("全部").apply {
         allSongs().forEach { add(it.category?.takeIf(String::isNotEmpty) ?: "其他") }

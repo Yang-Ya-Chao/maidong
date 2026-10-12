@@ -105,6 +105,7 @@ class Song {
             val parsed = parseName(base)
             id = path
             this.path = path
+            filename = name
             title = parsed.first
             singer = parsed.second
             val context = "$path $base"
@@ -202,19 +203,12 @@ class Song {
                 val first = clean.substring(0, index).trim()
                 val second = clean.substring(index + separator.length).trim()
                 if (first.isEmpty() || second.isEmpty()) continue
-                if (looksLikeSinger(first, second)) return second to first
-                if (looksLikeSinger(second, first)) return first to second
-                return if (first.length <= second.length) first to second else second to first
+                // 本地加歌约定：歌手-歌名，歌名中的后续连字符原样保留。
+                return second to first
             }
             return (clean.ifEmpty { "未命名歌曲" }) to "本地歌曲"
         }
 
-        private fun looksLikeSinger(singer: String, title: String): Boolean {
-            val value = singer.lowercase()
-            if (containsAny(value, "群星", "合唱", "乐队", "组合")) return true
-            if (containsAny(value, "mv", "伴奏", "karaoke")) return false
-            return singer.length <= 8 && title.length >= 2
-        }
 
         private fun inferLanguage(context: String): String {
             val text = context.lowercase()
