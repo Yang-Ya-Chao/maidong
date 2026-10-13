@@ -1,6 +1,6 @@
 # OpenList 网盘点播
 
-对应需求：[Gitee issue IKL0GK](https://gitee.com/yangyachao-X/maidong-ktv/issues/IKL0GK)。实现位于 `feature/igeba-media` 分支。
+对应需求：[Gitee issue IKL0GK](https://gitee.com/yangyachao-X/maidong-ktv/issues/IKL0GK)。实现位于 `codex/issue-ikl0gk-openlist` 分支；2.0.1 存储和播放修复独立保留在 `feature/igeba-media`。
 
 ## 使用方法
 
@@ -26,7 +26,11 @@
 
 新增 `OpenListSupportTest` 覆盖中文文件路径、目录边界、不同目录同名文件、歌曲序列化恢复、HTTP 分页参数、目录密码和令牌传递、播放地址重新获取、接口业务错误以及禁止令牌随重定向发送。
 
-本机模拟接口测试不能替代实际网盘账号、服务部署、电视遥控器操作与音视频解码验收。
+2026-10-13 在 Windows 本机部署真实 OpenList v4.2.6，使用 Local 驱动挂载 `/KTV`，存储目录为 `C:\jtmp\maidong-openlist-test\media`。服务使用默认 5244 端口，访客仅有读取权限，测试媒体为自行生成的 120 秒 H.264/AAC 视频。
+
+在 Nox 模拟器 `127.0.0.1:62001` 安装 Debug 应用，连接 `http://192.168.3.15:5244`，歌曲目录 `/KTV`，令牌和目录密码留空。实际通过：连接保存、重启后配置保留、点击切换设置输入框、列出中文视频和子目录、进入空目录、返回上级、加入已点队列、Media3 播放画面随时间变化。对应构建与单元测试均通过。
+
+模拟器实测覆盖本机 Local 存储服务；第三方网盘账号、电视遥控器及实体 U 盘/内存卡仍需目标设备验证。接口版本检查继续保留，内置曲库路径没有改回 Gitee 数据库下载。
 
 ## 接口依据
 

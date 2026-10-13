@@ -112,6 +112,8 @@ class OpenListBrowser(
             }
         }
         present(dialog)
+        // 遥控器样式会关闭触摸焦点；输入框仍需支持点击编辑。
+        listOf(server, token, root, password).forEach { it.isFocusableInTouchMode = true }
     }
 
     private fun browse(config: OpenListConfig) {
