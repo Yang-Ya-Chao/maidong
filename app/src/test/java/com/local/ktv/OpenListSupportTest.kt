@@ -1,0 +1,165 @@
+package com.local.ktv
+
+import org.json.JSONObject
+import org.junit.Assert.*
+import org.junit.Test
+import java.net.ServerSocket
+import java.net.InetAddress
+import java.net.SocketException
+import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicInteger
+
+class OpenListSupportTest {
+    @Test fun pathsKeepChineseNamesAndRespectRootBoundary() {
+        assertEquals("/KTV/周杰伦 - 晴天 #1.MKV", OpenListPaths.child("/KTV/", "周杰伦 - 晴天 #1.MKV"))
+        assertTrue(OpenListPaths.media("晴天.MKV"))
+        assertFalse(OpenListPaths.media("说明.txt"))
+        assertFalse(OpenListPaths.within("/KTV-other/歌.mp4", "/KTV"))
+        assertEquals("/KTV", OpenListPaths.parent("/KTV/国语", "/KTV"))
+        assertEquals("/KTV", OpenListPaths.parent("/KTV", "/KTV"))
+        assertThrows(IllegalArgumentException::class.java) { OpenListPaths.child("/KTV", "../secret") }
+        assertThrows(IllegalArgumentException::class.java) { OpenListPaths.normalize("/KTV/../secret") }
+        assertThrows(IllegalArgumentException::class.java) { OpenListPaths.server("https://user:pass@example.com") }
+        assertThrows(IllegalArgumentException::class.java) { OpenListPaths.server("https://example.com?token=test") }
+    }
+
+    @Test fun sameFileNameInDifferentFoldersOrServersRemainsDistinct() {
+        val first = OpenListPaths.songId("https://a.example", "/one/歌.mp4")
+        assertNotEquals(first, OpenListPaths.songId("https://a.example", "/two/歌.mp4"))
+        assertNotEquals(first, OpenListPaths.songId("https://b.example", "/one/歌.mp4"))
+        val a = song("/one/歌.mp4")
+        val b = song("/two/歌.mp4")
+        assertNotEquals(a, b)
+        val restored = Song.fromJson(a.toJson())
+        assertEquals(a, restored)
+        assertTrue(restored.isOpenList())
+        assertEquals("/one/歌.mp4", restored.openListPath)
+        assertFalse(a.toJson().has("token"))
+        assertEquals("", restored.getDownloadUrl())
+    }
+
+    @Test fun realHttpRequestsPreserveAuthorizationPasswordPaginationAndFreshUrls() {
+        val gets = AtomicInteger()
+        val server = LocalServer { request ->
+            assertEquals("POST", request.method)
+            assertEquals("test-token", request.headers["authorization"])
+            val body = JSONObject(request.body)
+            if (request.path == "/api/fs/list") {
+                assertEquals("/KTV/国语", body.getString("path"))
+                assertEquals("目录密码", body.getString("password"))
+                assertEquals(2, body.getInt("page"))
+                assertEquals(100, body.getInt("per_page"))
+                assertFalse(body.getBoolean("refresh"))
+                Response(body = """{"code":200,"data":{"total":101,"content":[{"name":"歌.mp4","is_dir":false,"size":123}]}}""")
+            } else {
+                assertEquals("/api/fs/get", request.path)
+                assertEquals("/KTV/国语/歌.mp4", body.getString("path"))
+                Response(body = """{"code":200,"data":{"is_dir":false,"raw_url":"/p/song.mp4?sign=${gets.incrementAndGet()}"}}""")
+            }
+        }
+        try {
+            val base = server.url
+            val client = OpenListClient(OpenListConfig(base, "test-token", "/KTV", "目录密码"))
+            val page = client.list("/KTV/国语", 2)
+            assertEquals(101, page.total)
+            assertEquals("歌.mp4", page.entries.single().name)
+            assertEquals("$base/p/song.mp4?sign=1", client.resolve("/KTV/国语/歌.mp4"))
+            assertEquals("$base/p/song.mp4?sign=2", client.resolve("/KTV/国语/歌.mp4"))
+        } finally { server.close() }
+    }
+
+    @Test fun applicationErrorsAndRedirectsAreRejectedWithoutLeakingServerMessages() {
+        val redirected = AtomicInteger()
+        val server = LocalServer { request ->
+            when (request.path) {
+                "/api/fs/list" -> Response(body = """{"code":403,"message":"secret-token","data":null}""")
+                "/api/fs/get" -> Response(status = 302, location = "/leak")
+                else -> { redirected.incrementAndGet(); Response() }
+            }
+        }
+        try {
+            val client = OpenListClient(OpenListConfig(server.url, "test-token"))
+            val denied = assertThrows(IllegalStateException::class.java) { client.list("/", 1) }
+            assertFalse(denied.message.orEmpty().contains("secret-token"))
+            assertThrows(IllegalStateException::class.java) { client.resolve("/song.mp4") }
+            assertEquals(0, redirected.get())
+        } finally { server.close() }
+    }
+
+    private fun song(path: String) = Song().apply {
+        openListServer = "https://a.example"
+        openListPath = path
+        id = OpenListPaths.songId(openListServer!!, path)
+        filename = "歌.mp4"
+        title = "歌"
+        singer = "歌手"
+        remote = true
+    }
+
+    private data class Request(val method: String, val path: String, val headers: Map<String, String>, val body: String)
+    private data class Response(val status: Int = 200, val body: String = "", val location: String? = null)
+
+    /** 用标准套接字模拟服务，避免依赖 Android 不包含的 JDK HTTP 模块。 */
+    private class LocalServer(private val respond: (Request) -> Response) {
+        private val socket = ServerSocket(0, 10, InetAddress.getByName("127.0.0.1"))
+        private val failure = AtomicReference<Throwable>()
+        val url = "http://127.0.0.1:${socket.localPort}"
+        private val worker = Thread {
+            while (!socket.isClosed) {
+                try {
+                    socket.accept().use { client ->
+                        client.soTimeout = 5000
+                        val input = client.getInputStream().buffered()
+                        fun line(): String = buildString {
+                            while (true) {
+                                val byte = input.read()
+                                if (byte < 0 || byte == 10) break
+                                if (byte != 13) append(byte.toChar())
+                            }
+                        }
+                        val first = line().split(' ')
+                        val headers = linkedMapOf<String, String>()
+                        while (true) {
+                            val header = line()
+                            if (header.isEmpty()) break
+                            headers[header.substringBefore(':').lowercase()] = header.substringAfter(':').trim()
+                        }
+                        val bytes = ByteArray(headers["content-length"]?.toInt() ?: 0)
+                        var offset = 0
+                        while (offset < bytes.size) {
+                            val count = input.read(bytes, offset, bytes.size - offset)
+                            check(count > 0)
+                            offset += count
+                        }
+                        val response = try {
+                            respond(Request(first[0], first[1], headers, bytes.toString(Charsets.UTF_8)))
+                        } catch (error: Throwable) {
+                            failure.set(error)
+                            Response(status = 500)
+                        }
+                        val body = response.body.toByteArray(Charsets.UTF_8)
+                        val head = "HTTP/1.1 ${response.status} Test\r\nContent-Type: application/json\r\n" +
+                            "Content-Length: ${body.size}\r\nConnection: close\r\n" +
+                            (response.location?.let { "Location: $it\r\n" } ?: "") + "\r\n"
+                        client.getOutputStream().use {
+                            it.write(head.toByteArray(Charsets.US_ASCII))
+                            it.write(body)
+                        }
+                    }
+                } catch (error: SocketException) {
+                    if (!socket.isClosed) failure.set(error)
+                    break
+                } catch (error: Throwable) {
+                    failure.set(error)
+                    break
+                }
+            }
+        }.apply { isDaemon = true; start() }
+
+        fun close() {
+            socket.close()
+            worker.join(5000)
+            failure.get()?.let { throw AssertionError("模拟服务断言失败", it) }
+        }
+    }
+}

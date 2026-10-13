@@ -133,6 +133,7 @@ class MainActivity : AppCompatActivity() {
     private val io: ExecutorService = Executors.newFixedThreadPool(4)
     private val stateIo: ExecutorService = Executors.newSingleThreadExecutor()
     private val library = SongLibrary()
+    private val openListBrowser by lazy { OpenListBrowser(this, io, ::orderSong) }
     private lateinit var stateDatabase: KtvStateDatabase
     private lateinit var playbackEngine: KtvPlaybackEngine
 
@@ -516,7 +517,7 @@ class MainActivity : AppCompatActivity() {
                         showDatabaseLoading(false, "", null)
                         showHomePage()
                         (currentSong ?: orderQueue?.firstOrNull())?.let { restored ->
-                            if (!restored.remote || restored.sourceSongNumber != null || restored.hasLocalFile()) play(restored)
+                            if (restored.isOpenList() || !restored.remote || restored.sourceSongNumber != null || restored.hasLocalFile()) play(restored)
                         }
                         persistRuntimeState()
                         if (usedOldDatabase && bootstrapError != null) toast("曲库更新失败，已使用本地曲库")
@@ -574,6 +575,7 @@ class MainActivity : AppCompatActivity() {
             storageReceiverRegistered = false
         }
         main.removeCallbacks(storageRefreshRunnable)
+        openListBrowser.close()
         super.onDestroy()
         io.shutdownNow()
         main.removeCallbacks(lyricTicker)
@@ -4439,7 +4441,9 @@ class MainActivity : AppCompatActivity() {
             updateBottomBar(song, true)
             scheduleAutoFullscreen()
 
-            if (song.hasLocalFile()) {
+            if (song.isOpenList()) {
+                playOpenListSong(song)
+            } else if (song.hasLocalFile()) {
                 playLocalFile(song)
             } else {
                 playbackPreparing = true
@@ -4454,6 +4458,35 @@ class MainActivity : AppCompatActivity() {
             }
         } catch (e: Exception) {
             toast("播放失败：" + e.message)
+        }
+    }
+
+    private fun playOpenListSong(song: Song, startPositionMs: Int = 0) {
+        val generation = playbackGeneration
+        val config = openListBrowser.config()
+        playbackPreparing = true
+        player?.stopPlayback()
+        io.execute {
+            val result = runCatching {
+                check(config.server == song.openListServer && config.server.isNotBlank()) {
+                    "请重新连接此歌曲所属的 OpenList 服务"
+                }
+                val path = song.openListPath ?: error("网盘歌曲路径缺失")
+                check(OpenListPaths.within(path, config.root)) { "歌曲不在设置的目录范围内" }
+                OpenListClient(config).resolve(path)
+            }
+            main.post {
+                if (isFinishing || isDestroyed || generation != playbackGeneration || currentSong !== song) return@post
+                result.onSuccess { url ->
+                    setupPlayerListeners(song, startPositionMs, generation)
+                    player!!.setVideoURI(Uri.parse(url))
+                    if (playWhenPrepared) player!!.start()
+                }.onFailure {
+                    playbackPreparing = false
+                    toast("网盘歌曲加载失败，已跳过；请检查连接、令牌和目录权限")
+                    playNext()
+                }
+            }
         }
     }
 
@@ -4572,12 +4605,14 @@ class MainActivity : AppCompatActivity() {
             if (generation != playbackGeneration || currentSong?.equals(song) != true) return@OnErrorListener true
             playbackPreparing = false
             Log.e(TAG, "MediaPlayer error what=" + what + " extra=" + extra)
-            if (songRetryCount < 2 && song != null && song.hasLocalFile()) {
+            if (songRetryCount < 2 && song != null && (song.isOpenList() || song.hasLocalFile())) {
                 songRetryCount++
                 val retry = songRetryCount
                 main.postDelayed(Runnable {
+                    if (generation != playbackGeneration || currentSong !== song) return@Runnable
                     toast("播放重试 " + retry + "/2")
-                    playLocalFile(song)
+                    if (song.isOpenList()) playOpenListSong(song, player?.currentPosition ?: 0)
+                    else playLocalFile(song)
                 }, 700L * retry)
             } else {
                 songRetryCount = 0
@@ -4629,6 +4664,10 @@ class MainActivity : AppCompatActivity() {
      * 使用 SongOkDownloadManager 下载歌曲到本地。
      */
     private fun downloadSong(song: Song, extraCallback: DownloadCallback? = null, storageChecked: Boolean = false) {
+        if (song.isOpenList()) {
+            toast("网盘歌曲支持在线点播，请从 OpenList 入口点歌")
+            return
+        }
         if (SongOkDownloadManager.isDownloading(song)) {
             if (extraCallback != null) extraCallback.onDownloadStart(song)
             return
@@ -7757,6 +7796,7 @@ class MainActivity : AppCompatActivity() {
 
         val entries = listOf(
             SettingsEntry(R.drawable.ott_ic_data_setting, "数据设置", "数据库、歌曲下载、歌曲文件相关设置") { showSettingsSection(1) },
+            SettingsEntry(R.drawable.ott_ic_data_setting, "OpenList 网盘歌曲", "连接网盘、浏览目录并在线点播", "打开") { openListBrowser.show() },
             SettingsEntry(R.drawable.ott_ic_play, "播放设置", "播放器、视频窗口相关设置") { showSettingsSection(2) },
             SettingsEntry(R.drawable.ott_ic_sound, "声音设置") { showSoundSettingsDialog() },
             SettingsEntry(
@@ -9184,7 +9224,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun isSongReadyForQueue(song: Song): Boolean =
-        SongOkDownloadManager.isDownloaded(song) || song.hasLocalFile()
+        song.isOpenList() || SongOkDownloadManager.isDownloaded(song) || song.hasLocalFile()
 
     private fun addReadySongToQueue(song: Song) {
         if (orderQueue!!.contains(song)) return

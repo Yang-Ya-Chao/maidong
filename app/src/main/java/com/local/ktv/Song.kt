@@ -20,6 +20,10 @@ class Song {
     @JvmField var originalPath: String? = null
     @JvmField var accompanyPath: String? = null
     @JvmField var lyricPath: String? = null
+    @JvmField var openListServer: String? = null
+    @JvmField var openListPath: String? = null
+    fun isOpenList(): Boolean = !openListServer.isNullOrBlank() && !openListPath.isNullOrBlank()
+
     @JvmField var remote = false
     @JvmField var playCount = 0
 
@@ -42,6 +46,8 @@ class Song {
 
     fun toJson(): JSONObject = JSONObject().apply {
         put("id", id)
+        put("openListServer", openListServer)
+        put("openListPath", openListPath)
         put("sourceSongNumber", sourceSongNumber)
         put("sourceVoiceChannel", sourceVoiceChannel)
         put("sourceVersion", sourceVersion)
@@ -83,6 +89,7 @@ class Song {
     } == true
 
     fun getDownloadUrl(): String {
+        if (isOpenList()) return ""
         val number = sourceSongNumber ?: return ""
         return runCatching { IgebaApiClient.address(number).url }.getOrDefault("")
     }
@@ -90,6 +97,7 @@ class Song {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Song) return false
+        if (isOpenList() || other.isOpenList()) return id != null && id == other.id
         if (id != null && id == other.id) return true
         if (filename != null && filename == other.filename) return true
         if (path != null && path == other.path) return true
@@ -147,6 +155,8 @@ class Song {
         @JvmStatic
         fun fromJson(json: JSONObject): Song = Song().apply {
             id = json.optString("id")
+            openListServer = json.optNullableString("openListServer")
+            openListPath = json.optNullableString("openListPath")
             sourceSongNumber = json.optNullableString("sourceSongNumber")
                 ?: id?.takeIf { it.startsWith("igeba:song:") }?.substringAfterLast(':')
             sourceVoiceChannel = json.optInt("sourceVoiceChannel", 0)
