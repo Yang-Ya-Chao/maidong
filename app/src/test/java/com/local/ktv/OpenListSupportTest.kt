@@ -86,6 +86,75 @@ class OpenListSupportTest {
         } finally { server.close() }
     }
 
+    @Test fun streamUploadEncodesChinesePathAndVerifiesSavedLength() {
+        val uploads = AtomicInteger()
+        val content = "测试视频".repeat(100)
+        val bytes = content.toByteArray(Charsets.UTF_8)
+        val target = "/KTV/歌手-测试 #1.mp4"
+        val server = LocalServer { request ->
+            if (request.path == "/api/fs/put") {
+                assertEquals("PUT", request.method)
+                assertEquals(target, java.net.URI(request.headers["file-path"]).path)
+                assertEquals("false", request.headers["as-task"])
+                assertEquals("false", request.headers["overwrite"])
+                assertEquals("test-token", request.headers["authorization"])
+                assertEquals(content, request.body)
+                uploads.incrementAndGet()
+                Response(body = """{"code":200,"data":null}""")
+            } else {
+                assertEquals(target, JSONObject(request.body).getString("path"))
+                Response(body = """{"code":200,"data":{"is_dir":false,"size":${bytes.size}}}""")
+            }
+        }
+        try {
+            val client = OpenListClient(OpenListConfig(server.url, "test-token", "/KTV"))
+            client.upload(target, bytes.size.toLong(), bytes.inputStream())
+            assertEquals(1, uploads.get())
+            assertThrows(IllegalArgumentException::class.java) {
+                client.upload("/other/歌.mp4", bytes.size.toLong(), bytes.inputStream())
+            }
+            assertEquals(1, uploads.get())
+        } finally { server.close() }
+    }
+
+    @Test fun uploadDenialAndLengthMismatchNeverReportSuccess() {
+        var denied = true
+        val server = LocalServer { request ->
+            if (request.path == "/api/fs/put") {
+                if (denied) Response(body = """{"code":403,"message":"secret","data":null}""")
+                else Response(body = """{"code":200,"data":null}""")
+            } else Response(body = """{"code":200,"data":{"is_dir":false,"size":999}}""")
+        }
+        try {
+            val client = OpenListClient(OpenListConfig(server.url, "test-token", "/KTV"))
+            val error = assertThrows(IllegalStateException::class.java) {
+                client.upload("/KTV/歌.mp4", 100, ByteArray(100).inputStream())
+            }
+            assertFalse(error.message.orEmpty().contains("secret"))
+            denied = false
+            assertThrows(IllegalStateException::class.java) {
+                client.upload("/KTV/歌.mp4", 100, ByteArray(100).inputStream())
+            }
+        } finally { server.close() }
+    }
+
+    @Test fun cloudIndexSurvivesRestartButIsIsolatedByServerAndRoot() {
+        val file = java.io.File.createTempFile("openlist-index", ".json")
+        try {
+            val config = OpenListConfig("https://a.example", "secret", "/one", "password")
+            val entry = song("/one/歌.mp4").apply { downloadUrl = "https://temporary.example/?sign=secret" }
+            OpenListCatalog(file).save(config, listOf(entry))
+            val restored = OpenListCatalog(file).cached(config).single()
+            assertEquals(entry.id, restored.id)
+            assertTrue(restored.downloadUrl.isNullOrBlank())
+            assertFalse(file.readText().contains("secret"))
+            assertTrue(OpenListCatalog(file).cached(config.copy(root = "/two")).isEmpty())
+            assertTrue(OpenListCatalog(file).cached(config.copy(server = "https://b.example")).isEmpty())
+            assertTrue(SongSearch.matches(restored, "歌"))
+            assertTrue(SongSearch.matches(restored, "歌手", singerOnly = true))
+        } finally { file.delete() }
+    }
+
     private fun song(path: String) = Song().apply {
         openListServer = "https://a.example"
         openListPath = path

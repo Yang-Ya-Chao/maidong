@@ -21,6 +21,51 @@ class OpenListClient(private val config: OpenListConfig) {
         return Page(entries, data.optInt("total", entries.size))
     }
 
+    fun upload(path: String, size: Long, input: java.io.InputStream,
+               cancelled: () -> Boolean = { false }, progress: (Int) -> Unit = {},
+               onConnection: (HttpURLConnection?) -> Unit = {}) {
+        require(size > 0) { "歌曲文件为空" }
+        require(OpenListPaths.within(path, config.root) && path != config.root) { "保存路径超出歌曲目录" }
+        val connection = URL(config.server + "/api/fs/put").openConnection() as HttpURLConnection
+        onConnection(connection)
+        try {
+            connection.requestMethod = "PUT"
+            connection.connectTimeout = 15000
+            connection.readTimeout = 120000
+            connection.instanceFollowRedirects = false
+            connection.doOutput = true
+            connection.setFixedLengthStreamingMode(size)
+            connection.setRequestProperty("Content-Type", "application/octet-stream")
+            connection.setRequestProperty("File-Path", java.net.URI(null, null, path, null).toASCIIString())
+            connection.setRequestProperty("As-Task", "false")
+            connection.setRequestProperty("Overwrite", "false")
+            if (config.token.isNotBlank()) connection.setRequestProperty("Authorization", config.token)
+            var sent = 0L
+            connection.outputStream.use { output ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    check(!cancelled()) { "保存已暂停" }
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    sent += count
+                    check(sent <= size) { "歌曲长度发生变化" }
+                    output.write(buffer, 0, count)
+                    progress((sent * 100 / size).toInt().coerceAtMost(99))
+                }
+            }
+            check(sent == size) { "歌曲读取不完整" }
+            check(connection.responseCode in 200..299) { "网盘上传失败，请检查连接和写入权限" }
+            val payload = connection.inputStream.bufferedReader().use { JSONObject(it.readText()) }
+            check(payload.optInt("code") == 200) { "网盘保存失败，请检查写入权限、剩余空间或同名文件" }
+            // 同步上传结束后再次验证落盘长度，不能把后台任务接收当作保存成功。
+            val saved = request("get", JSONObject().put("path", path).put("password", config.password))
+            check(!saved.optBoolean("is_dir") && saved.optLong("size", -1) == size) { "网盘文件长度校验失败" }
+        } finally {
+            connection.disconnect()
+            onConnection(null)
+        }
+    }
+
     fun resolve(path: String): String {
         val data = request("get", JSONObject().put("path", path).put("password", config.password))
         check(!data.optBoolean("is_dir")) { "请选择歌曲文件" }

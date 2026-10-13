@@ -31,6 +31,7 @@ class KtvStore {
     @JvmField var autoFullscreenSeconds = 0
     @JvmField var showUsbSongs = true
     @JvmField var downloadToUsb = false
+    @JvmField var downloadToOpenList = false
     @JvmField var usbTreeUri = ""
     @JvmField var autoDeleteSongs = true
     @JvmField var reserveStorageGb = 1.0
@@ -81,6 +82,7 @@ class KtvStore {
             autoFullscreenSeconds = root.optInt("autoFullscreenSeconds", 0)
             showUsbSongs = root.optBoolean("showUsbSongs", true)
             downloadToUsb = root.optBoolean("downloadToUsb", false)
+            downloadToOpenList = root.optBoolean("downloadToOpenList", false)
             usbTreeUri = root.optString("usbTreeUri", "")
             autoDeleteSongs = root.optBoolean("autoDeleteSongs", true)
             reserveStorageGb = root.optDouble("reserveStorageGb", 1.0).coerceIn(0.5, 64.0)
@@ -146,6 +148,7 @@ class KtvStore {
                 put("autoFullscreenSeconds", autoFullscreenSeconds)
                 put("showUsbSongs", showUsbSongs)
                 put("downloadToUsb", downloadToUsb)
+                put("downloadToOpenList", downloadToOpenList)
                 put("usbTreeUri", usbTreeUri)
                 put("autoDeleteSongs", autoDeleteSongs)
                 put("reserveStorageGb", reserveStorageGb)

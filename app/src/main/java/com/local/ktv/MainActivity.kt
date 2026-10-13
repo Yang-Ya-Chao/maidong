@@ -133,7 +133,12 @@ class MainActivity : AppCompatActivity() {
     private val io: ExecutorService = Executors.newFixedThreadPool(4)
     private val stateIo: ExecutorService = Executors.newSingleThreadExecutor()
     private val library = SongLibrary()
-    private val openListBrowser by lazy { OpenListBrowser(this, io, ::orderSong) }
+    private val openListBrowser by lazy { OpenListBrowser(this, io) {
+        refreshLibrary {
+            showSettingsSection(1, false)
+            toast("网盘配置已更新，选择网盘存储后点击“立即加歌”扫描歌曲")
+        }
+    } }
     private lateinit var stateDatabase: KtvStateDatabase
     private lateinit var playbackEngine: KtvPlaybackEngine
 
@@ -482,25 +487,9 @@ class MainActivity : AppCompatActivity() {
                     Log.i(TAG, "旧缓存已清理：${result.files} 个文件，${result.bytes} 字节")
                 }
             }
-            val remoteVersion = IgebaCatalogBootstrapper.fetchRemoteVersion()
-            val installed = runCatching { IgebaCatalogBootstrapper.getLocalDbVersion() }
-            val localVersion = installed.getOrNull()
-            val updateRequired = remoteVersion != null && remoteVersion != localVersion
-            var bootstrapError: Throwable? = installed.exceptionOrNull()
-            var usedOldDatabase = false
-
-            var ok = if (updateRequired) false else library.muse.open()
-            if (!ok) {
-                library.muse.close()
-                val result = IgebaCatalogBootstrapper.download(::showDatabaseDownloadProgress)
-                bootstrapError = result.exceptionOrNull()
-                ok = result.isSuccess && library.muse.open()
-                if (!ok) {
-                    // A failed online update must not make an existing local catalog unusable.
-                    usedOldDatabase = library.muse.open()
-                    ok = usedOldDatabase
-                }
-            }
+            val installed = runCatching { CatalogAssets.install() }
+            val bootstrapError: Throwable? = installed.exceptionOrNull()
+            val ok = installed.isSuccess && library.muse.open()
 
             if (ok) {
                 val migration = runCatching { PersonalMediaMigration.migrate(store, library.muse, currentSong) }
@@ -520,13 +509,46 @@ class MainActivity : AppCompatActivity() {
                             if (restored.isOpenList() || !restored.remote || restored.sourceSongNumber != null || restored.hasLocalFile()) play(restored)
                         }
                         persistRuntimeState()
-                        if (usedOldDatabase && bootstrapError != null) toast("曲库更新失败，已使用本地曲库")
                         if (catalogRefreshPending) refreshCurrentCatalogPage()
                     }
                 } else {
                     val reason = bootstrapError?.message.orEmpty().ifBlank { "未找到可用曲库" }
                     showDatabaseLoadingFailure("曲库初始化失败：$reason")
                 }
+            }
+        }
+    }
+
+    private fun updateIgebaCatalog() {
+        if (databaseBootstrapRunning) { toast("曲库正在处理，请稍后重试"); return }
+        databaseBootstrapRunning = true
+        busy(true, "正在检查 i歌霸曲库更新…")
+        io.execute {
+            val result = runCatching {
+                val remote = IgebaCatalogBootstrapper.fetchRemoteVersion()
+                    ?: error("无法连接 i歌霸曲库，请检查网络")
+                val local = IgebaCatalogBootstrapper.getLocalDbVersion()
+                if (remote == local) false else {
+                    library.muse.close()
+                    try {
+                        IgebaCatalogBootstrapper.download(::showDatabaseDownloadProgress).getOrThrow()
+                        check(library.muse.open()) { "更新后的曲库无法打开" }
+                    } finally { if (!library.muse.isAvailable()) library.muse.open() }
+                    true
+                }
+            }
+            main.post {
+                databaseBootstrapRunning = false
+                showDatabaseLoading(false, "", null)
+                busy(false, "")
+                result.onSuccess { updated ->
+                    synchronized(browsePageCache) { browsePageCache.clear() }
+                    synchronized(browseCountCache) { browseCountCache.clear() }
+                    refreshLibrary {
+                        showSettingsSection(1, false)
+                        toast(if (updated) "曲库已更新，共 ${library.muse.songCount()} 首" else "曲库已是最新")
+                    }
+                }.onFailure { toast(it.message ?: "曲库更新失败，已保留原曲库") }
             }
         }
     }
@@ -4441,10 +4463,10 @@ class MainActivity : AppCompatActivity() {
             updateBottomBar(song, true)
             scheduleAutoFullscreen()
 
-            if (song.isOpenList()) {
-                playOpenListSong(song)
-            } else if (song.hasLocalFile()) {
+            if (song.hasLocalFile()) {
                 playLocalFile(song)
+            } else if (song.isOpenList()) {
+                playOpenListSong(song)
             } else {
                 playbackPreparing = true
                 // 统一使用支持断点续传和下载地址重试的下载管理器。
@@ -4664,15 +4686,17 @@ class MainActivity : AppCompatActivity() {
      * 使用 SongOkDownloadManager 下载歌曲到本地。
      */
     private fun downloadSong(song: Song, extraCallback: DownloadCallback? = null, storageChecked: Boolean = false) {
-        if (song.isOpenList()) {
-            toast("网盘歌曲支持在线点播，请从 OpenList 入口点歌")
+        val openList = openListBrowser.config()
+        if (store.downloadToOpenList && openList.server.isBlank()) {
+            toast("请先设置 OpenList 连接和歌曲目录")
+            openListBrowser.show()
             return
         }
         if (SongOkDownloadManager.isDownloading(song)) {
             if (extraCallback != null) extraCallback.onDownloadStart(song)
             return
         }
-        if (!storageChecked && autoDeleteSongs && isBelowReservedStorage()) {
+        if (!store.downloadToOpenList && !storageChecked && autoDeleteSongs && isBelowReservedStorage()) {
             io.execute {
                 purgeColdDownloadedFiles()
                 main.post { downloadSong(song, extraCallback, storageChecked = true) }
@@ -4728,7 +4752,20 @@ class MainActivity : AppCompatActivity() {
                 }
                 main.post(Runnable {
                     downloads.removeAll { stableId(it.song) == stableId(song) }
-                    song.path = localPath
+                    song.path = localPath.takeIf { it.isNotBlank() }
+                    io.execute {
+                        if (song.isOpenList() && song.openListServer == openList.server) {
+                            runCatching { library.rememberOpenList(openList, song) }
+                                .onFailure { Log.w(TAG, "网盘歌曲索引保存失败", it) }
+                        }
+                        library.scanLocal()
+                        main.post {
+                            synchronized(browsePageCache) { browsePageCache.clear() }
+                            synchronized(browseCountCache) { browseCountCache.clear() }
+                            if (browseMode in setOf("search", "quick", "local")) reloadCurrentBrowsePage()
+                        }
+                    }
+                    toast(if (song.isOpenList() && localPath.isBlank()) "歌曲已保存到网盘" else "歌曲保存完成")
                     refreshSongAdapter()
                     val shouldAddToQueue = pendingQueueSongIds.remove(stableId(song))
                     pendingQueueCacheNames.remove(stableId(song))
@@ -4742,10 +4779,11 @@ class MainActivity : AppCompatActivity() {
                     if (currentTabIndex == 6) loadDownloadedList()
                     if (currentSong?.equals(song) == true && playbackPreparing) hideDownloadProgress()
                     if (!shouldAddToQueue && currentSong?.equals(song) == true && playbackPreparing) {
-                        switchToLocalPlayback(song)
+                        if (song.isOpenList() && !song.hasLocalFile()) playOpenListSong(song)
+                        else switchToLocalPlayback(song)
                     }
                 })
-                enforceStorageReserve()
+                if (!store.downloadToOpenList) enforceStorageReserve()
             }
 
             override fun onDownloadFailed(song: Song, error: String) {
@@ -4770,7 +4808,8 @@ class MainActivity : AppCompatActivity() {
                     if (wasPendingQueue) toast("下载失败：$error；未加入已点：${song.title}")
                 })
             }
-        })
+        }, source = openList, cloud = openList.takeIf { store.downloadToOpenList },
+            copyExisting = extraCallback == null)
     }
 
     /**
@@ -5407,7 +5446,10 @@ class MainActivity : AppCompatActivity() {
                 renderSongList()
             }
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        if (hasLocalFile) {
+        actions.addView(action(R.drawable.ott_ic_download, "保存到") {
+            showSaveSongDialog(song)
+        }, LinearLayout.LayoutParams(0, -2, 1f))
+        if (hasLocalFile && song.hasLocalFile()) {
             actions.addView(action(R.drawable.ott_ic_delete, "删除文件") {
                 confirmDeleteLocalFile(song)
             }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -5555,12 +5597,16 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
-    private fun refreshLibrary(after: Runnable?) {
-        busy(true, "正在扫描曲库...")
+    private fun refreshLibrary(after: Runnable?) = refreshLibraryImpl(after, false)
+
+    private fun refreshLibraryImpl(after: Runnable?, scanOpenList: Boolean) {
+        busy(true, if (scanOpenList) "正在扫描网盘歌曲..." else "正在扫描曲库...")
         io.execute {
             val result = runCatching {
                 val locals = library.scanLocal().size
                 library.loadCachedRemote()
+                if (scanOpenList) library.syncOpenList(openListBrowser.config())
+                else library.loadCachedOpenList(openListBrowser.config())
                 locals
             }
             main.post {
@@ -5568,6 +5614,7 @@ class MainActivity : AppCompatActivity() {
                     busy(false, "曲库已更新：本地 $locals 首，总计 ${library.allSongs().size} 首")
                     after?.run()
                     SongStorage.usbScanError?.let(::toast)
+                    library.openListScanError?.let(::toast)
                 }.onFailure {
                     busy(false, "曲库扫描失败")
                     toast(it.message ?: "曲库扫描失败，请检查保存位置")
@@ -7694,7 +7741,7 @@ class MainActivity : AppCompatActivity() {
             downloads.asSequence().map { it.song }
                 .plus(library.allSongs().asSequence())
                 .forEach { song ->
-                if (song.hasLocalFile() || isDownloaded(song)) {
+                if (song.isOpenList() || song.hasLocalFile() || isDownloaded(song)) {
                     localSongs.putIfAbsent(stableId(song), song)
                 }
             }
@@ -7796,7 +7843,6 @@ class MainActivity : AppCompatActivity() {
 
         val entries = listOf(
             SettingsEntry(R.drawable.ott_ic_data_setting, "数据设置", "数据库、歌曲下载、歌曲文件相关设置") { showSettingsSection(1) },
-            SettingsEntry(R.drawable.ott_ic_data_setting, "OpenList 网盘歌曲", "连接网盘、浏览目录并在线点播", "打开") { openListBrowser.show() },
             SettingsEntry(R.drawable.ott_ic_play, "播放设置", "播放器、视频窗口相关设置") { showSettingsSection(2) },
             SettingsEntry(R.drawable.ott_ic_sound, "声音设置") { showSoundSettingsDialog() },
             SettingsEntry(
@@ -7840,13 +7886,26 @@ class MainActivity : AppCompatActivity() {
             )
             1 -> listOf(
                 SettingsEntry(R.drawable.ott_ic_data_upgrade, "曲库", "数据库 ${library.muse.songCount()} 首  本地已下载 ${countDownloadedFiles()} 首", "更新") {
-                    io.execute { library.muse.close(); library.muse.open(); main.post { showSettingsSection(1, false) } }
+                    updateIgebaCatalog()
                 },
-                SettingsEntry(R.drawable.ott_ic_data_setting, "U盘加歌", "自动创建并扫描U盘 maidongktv 目录", "立即加歌") {
-                    chooseUsbFolder(false)
+                SettingsEntry(R.drawable.ott_ic_data_setting,
+                    if (store.downloadToOpenList) "网盘加歌" else "U盘加歌",
+                    if (store.downloadToOpenList) "扫描网盘歌曲目录并加入曲库检索" else "自动创建并扫描U盘 maidongktv 歌曲目录",
+                    "立即加歌") {
+                    if (store.downloadToOpenList) {
+                        if (openListBrowser.config().server.isBlank()) openListBrowser.show()
+                        else refreshLibraryImpl(Runnable {
+                            synchronized(browsePageCache) { browsePageCache.clear() }
+                            synchronized(browseCountCache) { browseCountCache.clear() }
+                            showSettingsSection(1, false)
+                            if (library.openListScanError == null) toast("网盘歌曲已加入曲库，可直接检索")
+                        }, true)
+                    } else chooseUsbFolder(false)
                 },
+                SettingsEntry(R.drawable.ott_ic_data_setting, "网盘设置", "配置 OpenList 服务和歌曲保存目录", "设置") { openListBrowser.show() },
                 SettingsEntry(R.drawable.ott_ic_setting_storage_space, "歌曲保存位置",
-                    if (store.downloadToUsb) "U盘存储" else "本地存储", "选择") { showDownloadLocationDialog() },
+                    when { store.downloadToOpenList -> "OpenList 网盘"; store.downloadToUsb -> "U盘存储"; else -> "本地存储" },
+                    "选择") { showDownloadLocationDialog() },
                 SettingsEntry(R.drawable.ott_ic_setting_storage_space, "预留存储空间", "当前 ${String.format(Locale.ROOT, "%.1f", reserveStorageGb)} GB") { showReserveStorageDialog() },
                 SettingsEntry(R.drawable.ott_ic_data_reset, "自动删歌", "当剩余存储空间低于预留空间时，自动删除最久未使用的歌曲", action = {
                     autoDeleteSongs = !autoDeleteSongs
@@ -7906,7 +7965,7 @@ class MainActivity : AppCompatActivity() {
                                 busy(false, "")
                                 result.onSuccess { root ->
                                     store.usbTreeUri = root
-                                    if (saveDownloads) store.downloadToUsb = true
+                                    if (saveDownloads) { store.downloadToUsb = true; store.downloadToOpenList = false }
                                     showUsbSongs = true
                                     saveState()
                                     refreshLibrary {
@@ -7940,12 +7999,43 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDownloadLocationDialog() {
         AlertDialog.Builder(this).setTitle("歌曲保存位置")
-            .setItems(arrayOf("本地存储", "U盘存储")) { _, which ->
-                if (which == 0) {
-                    store.downloadToUsb = false
-                    saveState()
-                    showSettingsSection(1, false)
-                } else chooseUsbFolder(true)
+            .setItems(arrayOf("本地存储", "U盘存储", "OpenList 网盘")) { _, which ->
+                when (which) {
+                    0 -> {
+                        store.downloadToUsb = false; store.downloadToOpenList = false
+                        saveState(); showSettingsSection(1, false)
+                    }
+                    1 -> chooseUsbFolder(true)
+                    2 -> {
+                        if (openListBrowser.config().server.isBlank()) openListBrowser.show()
+                        else {
+                            store.downloadToOpenList = true; store.downloadToUsb = false
+                            saveState(); showSettingsSection(1, false)
+                        }
+                    }
+                }
+            }.setNegativeButton("取消", null).showForTv()
+    }
+
+    private fun showSaveSongDialog(song: Song) {
+        AlertDialog.Builder(this).setTitle("保存歌曲到")
+            .setItems(arrayOf("本地存储", "U盘存储", "OpenList 网盘")) { _, which ->
+                if (which == 2 && openListBrowser.config().server.isBlank()) {
+                    toast("请先设置 OpenList"); openListBrowser.show(); return@setItems
+                }
+                if (which == 1) {
+                    val roots = SongStorage.usbRoots()
+                    if (roots.isEmpty()) {
+                        toast("未检测到U盘，请先使用U盘加歌"); return@setItems
+                    }
+                    val preferred = Uri.parse(store.usbTreeUri).path
+                    val selected = roots.firstOrNull { it.absolutePath == preferred } ?: roots.first()
+                    store.usbTreeUri = Uri.fromFile(selected).toString()
+                }
+                store.downloadToUsb = which == 1
+                store.downloadToOpenList = which == 2
+                saveState()
+                downloadSong(song)
             }.setNegativeButton("取消", null).showForTv()
     }
 
@@ -8927,7 +9017,7 @@ class MainActivity : AppCompatActivity() {
             { song -> songRowState(song) },
             SongListCallbacks(
                 onPrimary = { song -> handleSongPrimary(song) },
-                onDownload = { song -> downloadSong(song) },
+                onDownload = { song -> showSaveSongDialog(song) },
                 onMore = { song -> showSongActions(song) },
                 onTop = { song -> moveQueuedSongToNext(song) },
                 onDelete = { song ->
