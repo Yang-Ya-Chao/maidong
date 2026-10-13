@@ -173,7 +173,14 @@ class IgebaCatalog {
     fun songsByFilenames(filenames: Collection<String>): MutableList<Song> {
         val result = mutableListOf<Song>()
         filenames.distinct().chunked(300).forEach { names ->
-            result += songs("$SELECT WHERE s.filename IN (${names.joinToString(",") { "?" }})", names.toTypedArray())
+            result += songs("$SELECT WHERE s.filename COLLATE NOCASE IN (${names.joinToString(",") { "?" }})", names.toTypedArray())
+        }
+        return result
+    }
+    fun songsByNumbers(numbers: Collection<String>): MutableList<Song> {
+        val result = mutableListOf<Song>()
+        numbers.distinct().chunked(300).forEach { batch ->
+            result += songs("$SELECT WHERE s.number IN (${batch.joinToString(",") { "?" }})", batch.toTypedArray())
         }
         return result
     }

@@ -382,7 +382,7 @@ class MainActivity : AppCompatActivity() {
     private var lightMode: String? = "自动"
     private var audioDelayMs = 0
     private var screenBrightness = 80
-    private var screenMode = "适应屏幕"
+    private var screenMode = "16 : 9"
     private var doubleScreenEnabled = false
     private var tableBroadcastEnabled = true
     private var tableBroadcastSeconds = 8
@@ -951,7 +951,6 @@ class MainActivity : AppCompatActivity() {
         // 用 FrameLayout 包裹共享播放 Surface,以便叠加控制层
         val playerContainer = FrameLayout(this)
         player = KtvVideoView(this).also {
-            it.setScaleMode(screenMode)
             it.bind(playbackEngine)
             playbackEngine.attach(it)
         }
@@ -6165,7 +6164,6 @@ class MainActivity : AppCompatActivity() {
         homeVideoPlaceholder?.visibility = View.GONE
         subPageVideoPlaceholder?.visibility = View.GONE
         val persistentVideo = KtvVideoView(this).apply {
-            setScaleMode(screenMode)
             setOnClickListener {
                 if (isFullScreen) exitFullScreenPlayer() else showFullScreenPlayer()
             }
@@ -7802,11 +7800,11 @@ class MainActivity : AppCompatActivity() {
                 SettingsEntry(R.drawable.ott_ic_data_upgrade, "曲库", "数据库 ${library.muse.songCount()} 首  本地已下载 ${countDownloadedFiles()} 首", "更新") {
                     io.execute { library.muse.close(); library.muse.open(); main.post { showSettingsSection(1, false) } }
                 },
-                SettingsEntry(R.drawable.ott_ic_data_setting, "U盘加歌", "自动创建并扫描U盘 maidongktv 目录", "立即加歌") {
+                SettingsEntry(R.drawable.ott_ic_data_setting, "U盘加歌", "扫描 maidongktv 歌曲保存目录", "立即加歌") {
                     chooseUsbFolder(false)
                 },
                 SettingsEntry(R.drawable.ott_ic_setting_storage_space, "歌曲保存位置",
-                    if (store.downloadToUsb) "U盘存储" else "本地存储", "选择") { showDownloadLocationDialog() },
+                    if (store.downloadToUsb) "U盘 / 内存卡存储" else "本地存储", "选择") { showDownloadLocationDialog() },
                 SettingsEntry(R.drawable.ott_ic_setting_storage_space, "预留存储空间", "当前 ${String.format(Locale.ROOT, "%.1f", reserveStorageGb)} GB") { showReserveStorageDialog() },
                 SettingsEntry(R.drawable.ott_ic_data_reset, "自动删歌", "当剩余存储空间低于预留空间时，自动删除最久未使用的歌曲", action = {
                     autoDeleteSongs = !autoDeleteSongs
@@ -7846,15 +7844,15 @@ class MainActivity : AppCompatActivity() {
 
     private fun chooseUsbFolder(saveDownloads: Boolean, rootPath: String? = null) {
         val previousPaths = library.allSongs().mapNotNull { it.path }.toSet()
-        busy(true, "正在检测U盘...")
+        busy(true, "正在检测U盘 / 内存卡...")
         io.execute {
             val roots = runCatching { SongStorage.usbRoots() }
             main.post {
                 roots.onSuccess { available ->
                     if (saveDownloads && rootPath == null && available.size > 1) {
                         busy(false, "")
-                        AlertDialog.Builder(this).setTitle("选择U盘")
-                            .setItems(available.map { "U盘 ${it.name}" }.toTypedArray()) { _, which ->
+                        AlertDialog.Builder(this).setTitle("选择U盘 / 内存卡")
+                            .setItems(available.map { "外置存储 ${it.name}" }.toTypedArray()) { _, which ->
                                 chooseUsbFolder(true, available[which].absolutePath)
                             }.setNegativeButton("取消", null).showForTv()
                     } else {
@@ -7872,7 +7870,7 @@ class MainActivity : AppCompatActivity() {
                                     refreshLibrary {
                                         if (saveDownloads) {
                                             showSettingsSection(1, false)
-                                            toast("新下载将保存到U盘 ${UsbMountDiscovery.SONG_DIRECTORY}")
+                                            toast("新下载将保存到外置存储 ${UsbMountDiscovery.SONG_DIRECTORY}")
                                         } else {
                                             showLocalPage()
                                             if (SongStorage.usbScanError == null) {
@@ -7882,7 +7880,7 @@ class MainActivity : AppCompatActivity() {
                                                 val paths = library.allSongs().mapNotNull { it.path }
                                                     .filter { path -> folders.any(path::startsWith) }.distinct()
                                                 val added = paths.count { it !in previousPaths }
-                                                toast("U盘扫描完成：找到 ${paths.size} 首，新增 $added 首")
+                                                toast("外置存储扫描完成：找到 ${paths.size} 首，新增 $added 首")
                                             }
                                         }
                                     }
@@ -7900,7 +7898,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun showDownloadLocationDialog() {
         AlertDialog.Builder(this).setTitle("歌曲保存位置")
-            .setItems(arrayOf("本地存储", "U盘存储")) { _, which ->
+            .setItems(arrayOf("本地存储", "U盘 / 内存卡存储")) { _, which ->
                 if (which == 0) {
                     store.downloadToUsb = false
                     saveState()
@@ -8248,7 +8246,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showScreenDialog() {
-        val items = arrayOf("适应屏幕", "16 : 9", "4 : 3", "全屏")
+        val items = arrayOf("16 : 9", "4 : 3", "全屏")
         val selected = items.indexOf(screenMode).coerceAtLeast(0)
         var pending = selected
         val choices = dialogSingleChoiceGroup(items, selected) { pending = it }
@@ -8496,7 +8494,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyScreenMode() {
-        player?.setScaleMode(screenMode)
+        if (player != null) {
+            try {
+                applyPlaybackMode()
+            } catch (ignored: Exception) {
+            }
+        }
     }
 
     /**
@@ -9335,7 +9338,7 @@ class MainActivity : AppCompatActivity() {
         lightMode = store.lightMode
         audioDelayMs = store.audioDelayMs
         screenBrightness = store.screenBrightness
-        screenMode = store.screenMode
+        screenMode = store.screenMode.takeIf { it != "适应屏幕" } ?: "16 : 9"
         doubleScreenEnabled = store.doubleScreenEnabled
         tableBroadcastEnabled = store.tableBroadcastEnabled
         tableBroadcastSeconds = store.tableBroadcastSeconds

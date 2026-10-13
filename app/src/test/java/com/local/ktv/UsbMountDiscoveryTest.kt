@@ -42,6 +42,34 @@ class UsbMountDiscoveryTest {
         assertEquals(setOf(song.canonicalFile, second.canonicalFile), UsbMountDiscovery.songs(root).toSet())
     }
 
+    @Test fun discoversSdCardBindMountWithoutBlockDeviceSource() {
+        val mounts = """
+            10 1 8:1 / /storage/1234-ABCD rw - vfat /mnt/media_rw/1234-ABCD rw
+            11 1 8:2 / /storage/1234-ABCD/Android rw - vfat /mnt/media_rw/1234-ABCD rw
+            12 1 0:3 / /storage/emulated/0 rw - fuse /dev/fuse rw
+        """.trimIndent()
+        assertEquals(listOf("/storage/1234-ABCD"), UsbMountDiscovery.candidates(mounts))
+    }
+
+    @Test fun resolvesPortableVolumeUuidAndRejectsInternalOrTraversalIds() {
+        assertEquals(File("/storage", "1234-ABCD"), UsbMountDiscovery.publicVolumeRoot("1234-ABCD"))
+        listOf(null, "", "primary", "emulated", "self", "../card", "a/b").forEach {
+            assertNull(UsbMountDiscovery.publicVolumeRoot(it))
+        }
+    }
+
+    @Test fun publicDirectoryFallbackIncludesCardAndExcludesInternalStorage() {
+        val storage = temporary.newFolder("storage")
+        val primary = File(storage, "sdcard0").apply { mkdir() }
+        val card = File(storage, "1234-ABCD").apply { mkdir() }
+        File(storage, "emulated").mkdir()
+        File(storage, "self").mkdir()
+        assertEquals(listOf(card.canonicalFile), UsbMountDiscovery.publicRoots(storage, primary))
+        // 主共享存储本身是实体卡时，不传入内部存储排除项。
+        assertEquals(setOf(primary.canonicalFile, card.canonicalFile),
+            UsbMountDiscovery.publicRoots(storage, null).toSet())
+    }
+
     @Test fun scanningDoesNotCreateAnyFolder() {
         val root = temporary.newFolder("empty-usb")
         assertTrue(UsbMountDiscovery.songs(root).isEmpty())

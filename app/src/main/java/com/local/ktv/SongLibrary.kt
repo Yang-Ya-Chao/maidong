@@ -23,25 +23,20 @@ class SongLibrary {
     @Synchronized fun scanLocal(): List<Song> {
         ensureDirs()
         localSongs.clear()
-        scanDir(rootDir)
-        scanDir(importDir)
+        val files = mutableListOf<File>()
+        scanDir(rootDir, files)
+        scanDir(importDir, files)
         SongStorage.usbScanError = null
         if (SongStorage.includeUsb) {
             runCatching {
-                val media = SongStorage.usbMedia()
-                val matched = muse.songsByFilenames(media.map { it.name }).associateBy { it.filename }
-                media.forEach { item ->
-                    val path = checkNotNull(item.path)
-                    val song = matched[item.name]?.let { Song.fromJson(it.toJson()) } ?: Song.local(path, item.name)
-                    song.path = path
-                    song.filename = item.name
-                    localSongs += song
-                }
+                val usbFiles = SongStorage.usbMedia().mapNotNull { (it as? SongStorage.FileMedia)?.file }
+                files += usbFiles
             }.onFailure {
                 SongStorage.usbScanError = it.message ?: "U盘歌曲扫描失败"
                 android.util.Log.w("SongLibrary", "U盘歌曲扫描失败", it)
             }
         }
+        localSongs += LocalSongResolver.resolve(files, muse::songsByFilenames, muse::songsByNumbers)
         localSongs.filter { it.sourceSongNumber.isNullOrBlank() }.forEach { song ->
             val text = "${song.title.orEmpty()} ${song.singer.orEmpty()}"
             song.pinyin = IgebaCatalogBootstrapper.initials(text)
@@ -127,19 +122,19 @@ class SongLibrary {
         return File(rootDir, clean + extension)
     }
 
-    private fun scanDir(dir: File, visited: MutableSet<String> = HashSet()) {
+    private fun scanDir(dir: File, files: MutableList<File>, visited: MutableSet<String> = HashSet()) {
         val canonical = runCatching { dir.canonicalPath }.getOrNull() ?: return
         if (!visited.add(canonical)) return
         dir.listFiles().orEmpty().forEach { file ->
             when {
-                file.isDirectory -> scanDir(file, visited)
-                isMedia(file.name) -> localSongs += Song.local(file.absolutePath, file.name)
+                file.isDirectory -> scanDir(file, files, visited)
+                isMedia(file.name) -> files += file
             }
         }
     }
 
     private fun isMedia(name: String): Boolean {
         val lower = name.lowercase(Locale.ROOT)
-        return listOf(".mp4", ".mkv", ".avi", ".mp3", ".flac", ".wav").any(lower::endsWith)
+        return listOf(".mp4", ".mkv", ".mpg", ".mpeg", ".avi", ".mp3", ".flac", ".wav").any(lower::endsWith)
     }
 }

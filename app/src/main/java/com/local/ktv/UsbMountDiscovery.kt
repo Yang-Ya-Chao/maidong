@@ -34,6 +34,25 @@ internal object UsbMountDiscovery {
         return result
     }
 
+    fun publicVolumeRoot(uuid: String?): File? = uuid?.takeIf {
+        it.matches(Regex("[A-Za-z0-9_-]+")) &&
+            it.lowercase() !in setOf("primary", "emulated", "self")
+    }?.let { File("/storage", it) }
+
+    /** 厂家可能不向应用专属目录或 StorageVolume 列表报告 SD 卡。 */
+    fun publicRoots(storage: File, primary: File?): List<File> =
+        storage.listFiles().orEmpty().filter { candidate ->
+            if (candidate.name.lowercase() in setOf("emulated", "self", "primary", "enc_emulated")) return@filter false
+            runCatching {
+                val folder = candidate.canonicalFile
+                val internal = primary?.canonicalFile
+                folder.isDirectory && folder.canRead() && folder.listFiles() != null &&
+                    (internal == null || folder != internal &&
+                        !folder.path.startsWith(internal.path + File.separator) &&
+                        !internal.path.startsWith(folder.path + File.separator))
+            }.getOrDefault(false)
+        }.map { it.canonicalFile }.distinct()
+
     private val internalMnt = setOf("runtime", "user", "installer", "pass_through", "expand",
         "obb", "asec", "secure", "shell", "vendor", "product", "misc", "androidwritable")
     private fun decode(value: String): String =
@@ -48,13 +67,12 @@ internal object UsbMountDiscovery {
             val path = decode(fields[4]).trimEnd('/')
             val fs = fields[separator + 1]
             val source = decode(fields[separator + 2])
-            if (!source.startsWith("/dev/") && !fs.startsWith("fuse") &&
-                fs !in setOf("sdcardfs", "esdfs")) return@forEach
             val parts = path.split('/').filter(String::isNotEmpty)
             if (parts.size < 2 || "Android" in parts) return@forEach
             when (parts[0]) {
-                "storage" -> if (parts[1] in setOf("emulated", "self")) return@forEach
-                "mnt" -> if (parts[1] in internalMnt) return@forEach
+                "storage" -> if (parts.size != 2 || parts[1] in setOf("emulated", "self")) return@forEach
+                "mnt" -> if (parts[1] in internalMnt || !source.startsWith("/dev/") &&
+                    !fs.startsWith("fuse") && fs !in setOf("sdcardfs", "esdfs")) return@forEach
                 else -> return@forEach
             }
             // 同一挂载在不同可见路径下的别名优先使用 /storage。

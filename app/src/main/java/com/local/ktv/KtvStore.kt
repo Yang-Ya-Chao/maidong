@@ -44,7 +44,7 @@ class KtvStore {
     @JvmField var lightMode = "自动"
     @JvmField var audioDelayMs = 0
     @JvmField var screenBrightness = 80
-    @JvmField var screenMode = "适应屏幕"
+    @JvmField var screenMode = "16 : 9"
     @JvmField var doubleScreenEnabled = false
     @JvmField var tableBroadcastEnabled = true
     @JvmField var tableBroadcastSeconds = 8
@@ -94,7 +94,8 @@ class KtvStore {
             lightMode = root.optString("lightMode", "自动")
             audioDelayMs = root.optInt("audioDelayMs", 0)
             screenBrightness = root.optInt("screenBrightness", 80)
-            screenMode = root.optString("screenMode", "适应屏幕")
+            screenMode = root.optString("screenMode", "16 : 9")
+                .takeIf { it != "适应屏幕" } ?: "16 : 9"
             doubleScreenEnabled = root.optBoolean("doubleScreenEnabled", false)
             tableBroadcastEnabled = root.optBoolean("tableBroadcastEnabled", true)
             tableBroadcastSeconds = root.optInt("tableBroadcastSeconds", 8)

@@ -79,23 +79,37 @@ internal object SongStorage {
     fun usbRoots(): List<File> {
         val app = KtvApplication.getInstance()
         val primary = runCatching { android.os.Environment.getExternalStorageDirectory().canonicalFile }.getOrNull()
+        val removablePrimary = primary != null && runCatching {
+            android.os.Environment.isExternalStorageRemovable(primary) &&
+                !android.os.Environment.isExternalStorageEmulated(primary)
+        }.getOrDefault(false)
+        val internalPrimary = primary.takeUnless { removablePrimary }
         val roots = linkedSetOf<File>()
         fun add(candidate: File) {
             runCatching {
                 val folder = candidate.canonicalFile
-                if (primary != null && (folder == primary ||
-                        folder.path.startsWith(primary.path + File.separator))) return@runCatching
+                if (internalPrimary != null && (folder == internalPrimary ||
+                        folder.path.startsWith(internalPrimary.path + File.separator))) return@runCatching
                 if (folder.isDirectory && folder.canRead() && folder.listFiles() != null) roots += folder
             }
         }
-        if (android.os.Build.VERSION.SDK_INT >= 30) {
+        if (removablePrimary && android.os.Environment.getExternalStorageState() in
+            setOf(android.os.Environment.MEDIA_MOUNTED, android.os.Environment.MEDIA_MOUNTED_READ_ONLY)) {
+            primary?.let(::add)
+        }
+        if (android.os.Build.VERSION.SDK_INT >= 24) {
             runCatching {
                 val manager = app.getSystemService(android.os.storage.StorageManager::class.java)
-                manager?.storageVolumes?.filter { it.isRemovable &&
+                manager?.storageVolumes?.filter { it.isRemovable && !it.isEmulated &&
                     it.state in setOf(android.os.Environment.MEDIA_MOUNTED, android.os.Environment.MEDIA_MOUNTED_READ_ONLY) }
-                    ?.mapNotNull { it.directory }?.forEach(::add)
+                    ?.forEach { volume ->
+                        if (android.os.Build.VERSION.SDK_INT >= 30) volume.directory?.let(::add)
+                        // Android 7–10 没有公开的 directory 属性，使用公开卷 UUID 补充路径。
+                        UsbMountDiscovery.publicVolumeRoot(volume.uuid)?.let(::add)
+                    }
             }
         }
+        UsbMountDiscovery.publicRoots(File("/storage"), internalPrimary).forEach(::add)
         runCatching {
             app.getExternalFilesDirs(null).filterNotNull().forEach { folder ->
                 if (runCatching { android.os.Environment.isExternalStorageRemovable(folder) }.getOrDefault(false)) {
