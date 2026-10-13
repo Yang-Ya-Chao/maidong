@@ -52,8 +52,8 @@ internal object SongStorage {
     }
 
     /** 下载开始前验证目录及实际写入权限；不修改用户保存的偏好。 */
-    fun prepareDownloadChoice(): Choice {
-        val effective = choice()
+    fun prepareDownloadChoice(preferred: Choice = choice()): Choice {
+        val effective = preferred
         if (!effective.usb) {
             directory(effective, true)
             return effective

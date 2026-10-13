@@ -31,7 +31,7 @@ class IgebaCatalog {
         val value = keyword?.trim().orEmpty()
         if (value.isEmpty()) return "1=1"
         val columns = if (singer) listOf("sg.name", "sg.pinyin", "sg.pinyin_full")
-            else listOf("s.name", "s.pinyin", "s.pinyin_full")
+            else listOf("s.name", "s.singer", "s.pinyin", "s.pinyin_full", "s.number", "s.filename")
         columns.forEach { args += "%${value.uppercase(Locale.ROOT)}%" }
         return columns.joinToString(" OR ", "(", ")") { "$it LIKE ?" }
     }

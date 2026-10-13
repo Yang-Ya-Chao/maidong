@@ -10,6 +10,56 @@ import org.junit.rules.TemporaryFolder
 class LocalSongResolverTest {
     @get:Rule val temporary = TemporaryFolder()
 
+    @Test fun fileNumberCanDifferFromSourceNumberAndOverridesOldCloudIndex() {
+        val old = Song.local("/KTV/210016744.MKV", "210016744.MKV")
+        val known = catalogSong("10016744", "210016744.mkv").apply {
+            title = "后来"; singer = "刘若英"
+        }
+        val resolved = LocalSongResolver.resolveEntries(
+            listOf(LocalSongResolver.Entry("/KTV/210016744.MKV", "210016744.MKV", old)),
+            { listOf(known) }, { emptyList() }).single()
+        assertEquals("后来", resolved.title)
+        assertEquals("刘若英", resolved.singer)
+        assertEquals("10016744", resolved.sourceSongNumber)
+        assertEquals("/KTV/210016744.MKV", resolved.path)
+        assertEquals("210016744.MKV", resolved.filename)
+        assertTrue(SongSearch.matches(resolved, "后来"))
+        assertTrue(SongSearch.matches(resolved, "刘若英"))
+        assertEquals("210016744", old.title)
+    }
+
+    @Test fun numberedAndManualSongsResolveTogetherForUsbAndCloud() {
+        val source = catalogSong("00522920", "other.mkv")
+        for (root in listOf("/storage/CARD/maidongktv/video/cloud-song", "/KTV/子目录")) {
+            val resolved = LocalSongResolver.resolveEntries(listOf(
+                LocalSongResolver.Entry("$root/00522920.MKV", "00522920.MKV"),
+                LocalSongResolver.Entry("$root/陈奕迅-十年-现场版.mp4", "陈奕迅-十年-现场版.mp4")
+            ), { emptyList() }, { listOf(source) })
+            assertEquals("晴天", resolved[0].title)
+            assertEquals("周杰伦", resolved[0].singer)
+            assertEquals("十年-现场版", resolved[1].title)
+            assertEquals("陈奕迅", resolved[1].singer)
+            assertNull(resolved[1].sourceSongNumber)
+            assertTrue(SongSearch.matches(resolved[0], "晴天"))
+            assertTrue(SongSearch.matches(resolved[1], "十年"))
+            assertTrue(SongSearch.matches(resolved[1], "陈奕迅", singerOnly = true))
+        }
+    }
+
+    @Test fun openListCompletionRecordRestoresSavedLocalMetadata() {
+        val file = temporary.newFile("cache_song.mp4").apply { writeText("media") }
+        val saved = Song.local("/KTV/陈奕迅-十年.mp4", "陈奕迅-十年.mp4").apply {
+            openListServer = "https://example.invalid"; openListPath = "/KTV/陈奕迅-十年.mp4"
+        }
+        File(file.parentFile, file.name + ".complete.json").writeText(
+            JSONObject().put("provider", "openlist").put("bytes", file.length())
+                .put("song", saved.toJson()).toString())
+        val resolved = LocalSongResolver.resolve(listOf(file), { emptyList() }, { emptyList() }).single()
+        assertEquals("十年", resolved.title)
+        assertEquals("陈奕迅", resolved.singer)
+        assertEquals(file.absolutePath, resolved.path)
+    }
+
     private fun catalogSong(number: String, name: String) = Song().apply {
         sourceSongNumber = number
         id = "igeba:song:$number"

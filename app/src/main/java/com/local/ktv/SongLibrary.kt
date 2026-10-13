@@ -10,6 +10,31 @@ class SongLibrary {
     private val indexFile = AppPaths.catalogFile
     private val localSongs = mutableListOf<Song>()
     private val remoteSongs = mutableListOf<Song>()
+    private val cloudSongs = mutableListOf<Song>()
+    private val cloudCatalog = OpenListCatalog()
+    @Volatile var openListScanError: String? = null
+
+    fun loadCachedOpenList(config: OpenListConfig) {
+        openListScanError = null
+        val cached = cloudCatalog.resolve(config, cloudCatalog.cached(config), muse)
+        synchronized(this) { cloudSongs.clear(); cloudSongs.addAll(cached) }
+    }
+
+    fun syncOpenList(config: OpenListConfig) {
+        loadCachedOpenList(config)
+        openListScanError = null
+        if (config.server.isBlank()) return
+        runCatching { cloudCatalog.scan(config, muse) }.onSuccess { songs ->
+            synchronized(this) { cloudSongs.clear(); cloudSongs.addAll(songs) }
+        }.onFailure { openListScanError = "网盘同步失败，已保留上次索引；请检查连接和目录权限" }
+    }
+
+    @Synchronized fun rememberOpenList(config: OpenListConfig, song: Song) {
+        val saved = Song.fromJson(song.toJson())
+        cloudSongs.removeAll { it.openListPath == saved.openListPath && it.openListServer == saved.openListServer }
+        cloudSongs.add(saved)
+        cloudCatalog.save(config, cloudSongs)
+    }
     @JvmField val muse = IgebaCatalog()
 
     fun ensureDirs() {
@@ -26,6 +51,7 @@ class SongLibrary {
         val files = mutableListOf<File>()
         scanDir(rootDir, files)
         scanDir(importDir, files)
+        scanDir(AppPaths.cloudSongsDir, files)
         SongStorage.usbScanError = null
         if (SongStorage.includeUsb) {
             runCatching {
@@ -77,11 +103,11 @@ class SongLibrary {
         return indexFile.exists() && indexFile.delete()
     }
 
-    @Synchronized fun allSongs(): List<Song> = localSongs + remoteSongs
+    @Synchronized fun allSongs(): List<Song> = (localSongs + cloudSongs + remoteSongs).distinctBy { KtvStore.stableId(it) }
 
     internal fun search(query: String, offset: Int, limit: Int, language: String? = null,
                         singerOnly: Boolean = false): SongSearch.Page {
-        val snapshot = synchronized(this) { localSongs.toList() }
+        val snapshot = synchronized(this) { (localSongs + cloudSongs).distinctBy { KtvStore.stableId(it) } }
         val available = muse.isAvailable()
         // 已按目录编号识别的文件由目录结果返回，避免重复；保留其本地播放路径。
         val imported = snapshot.filter {
@@ -91,11 +117,17 @@ class SongLibrary {
         val count = if (!available) 0 else if (singerOnly) muse.searchSongsBySingerKeywordCount(query)
             else muse.searchSongCount(query, language)
         val localByNumber = snapshot.filter { !it.sourceSongNumber.isNullOrBlank() }
-            .associateBy { it.sourceSongNumber }
+            .groupBy { it.sourceSongNumber }.mapValues { (_, copies) ->
+                copies.firstOrNull { it.hasLocalFile() } ?: copies.first()
+            }
         return SongSearch.page(imported, count, offset, limit) { from, size ->
             val songs = if (singerOnly) muse.searchSongsBySingerKeyword(query, from, size)
                 else muse.searchSongs(query, from, size, language)
-            songs.forEach { song -> localByNumber[song.sourceSongNumber]?.let { song.path = it.path } }
+            songs.forEach { song -> localByNumber[song.sourceSongNumber]?.let {
+                song.path = it.path
+                song.openListServer = it.openListServer
+                song.openListPath = it.openListPath
+            } }
             songs
         }
     }
@@ -135,6 +167,6 @@ class SongLibrary {
 
     private fun isMedia(name: String): Boolean {
         val lower = name.lowercase(Locale.ROOT)
-        return listOf(".mp4", ".mkv", ".mpg", ".mpeg", ".avi", ".mp3", ".flac", ".wav").any(lower::endsWith)
+        return OpenListPaths.media(lower)
     }
 }
