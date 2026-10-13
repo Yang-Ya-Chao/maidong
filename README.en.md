@@ -8,7 +8,7 @@
 
 <p align="center">Remote Control · Song Discovery · Request Queue · Download Management · Stable Playback</p>
 
-## Version 2.0.0
+## Version 2.1.0
 
 Branch: `feature/igeba-media`. The bundled catalog contains 81,801 songs, 4,807 singers, 63 category playlists, and 7 charts. Existing pages, favorites, personal playlists, and singer portraits are retained.
 
@@ -34,7 +34,7 @@ Branch: `feature/igeba-media`. The bundled catalog contains 81,801 songs, 4,807 
 - Original-vocal and accompaniment switching without changing the current play or pause state.
 - Synchronized playback state across windowed controls, full-screen controls, and status overlays.
 - Song title overlays, temporary mode prompts, and persistent pause indicators.
-- Video ratio, automatic full screen, audio-video synchronization, and public playback settings.
+- Fixed 16:9 video layout, automatic full screen, audio-video synchronization, and public playback settings.
 - Maximum song volume and configurable original-vocal and accompaniment behavior.
 
 ## Downloads And Data
@@ -44,13 +44,15 @@ Branch: `feature/igeba-media`. The bundled catalog contains 81,801 songs, 4,807 
 - Recognition, counting, and playback of downloaded local songs.
 - Bundled song, singer, playlist, and chart databases for offline browsing.
 - Directory creation, database scanning, and download startup only after storage permission is granted.
-- Local storage by default; optional USB storage falls back to local storage when unavailable, unwritable, or short of space. USB songs are scanned from the maidongktv directory.
+- Local storage by default, with USB and OpenList as alternative save destinations. USB falls back to local storage when unavailable, unwritable, or short of space.
+- Unified scanning and search across local, USB, and OpenList songs. Numbered downloads resolve titles and singers from the catalog; external files use `Singer-Title.ext` names.
+- USB scanning uses `maidongktv/video/cloud-song` under the selected volume. System-mounted, app-readable removable SD cards also participate in volume discovery.
 - Unified Maidong KTV data storage to avoid conflicts with other applications.
 
 ## Settings
 
 - Data settings for library updates, local scanning, reserved space, automatic cleanup, and a local library reset that preserves USB files.
-- Playback settings for public playback, automatic full screen, video ratio, synchronization, and title overlays.
+- Playback settings for public playback, automatic full screen, synchronization, and title overlays; video layout is fixed at 16:9.
 - Sound settings for volume behavior, maximum song volume, original vocals, and accompaniment.
 - Interface settings for language, floating controls, carousel content, and song title overlays.
 - Dialog selections remain temporary until confirmed and provide clear remote-control focus feedback.
@@ -71,3 +73,10 @@ Branch: `feature/igeba-media`. The bundled catalog contains 81,801 songs, 4,807 
 - Personal media snapshots are stored in `personal_media.db`. Only unambiguous title-and-singer matches are mapped during legacy favorites migration.
 - Library reset restores the bundled catalog and clears local download caches; USB files are preserved.
 - Application updates use Gitee Release version tags and APK attachments.
+- Startup uses the bundled catalog without downloading databases from Gitee. The library update button explicitly checks the iGeba catalog for changes and reports when it is already current.
+
+## OpenList
+
+Configure the service URL, access credentials, and song directory in Settings → Data Settings → Cloud Drive Settings. Select OpenList as the save location to change the USB import entry to cloud import. Scan the configured directory to index songs in the local list and search; playback reads them from the cloud service. Search results can be saved to local storage, USB, or OpenList. Uploads require write permission on the configured directory.
+
+See [OpenList setup](docs/openlist.md) and [2.1.0 release notes](docs/release-2.1.0.md) for details.
