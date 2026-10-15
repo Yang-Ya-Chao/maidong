@@ -12,11 +12,7 @@ android {
         minSdk 21
         targetSdk 25
         versionCode 4
-        versionName "2.1.0"
-        ndk {
-            // 新播放器使用系统解码，不打包旧 IJK 原生库。
-            abiFilters "armeabi-v7a", "arm64-v8a"
-        }
+        versionName "2.1.1"
 
     }
 
@@ -32,6 +28,8 @@ android {
 
     buildTypes {
         release {
+            // 正式版面向 32/64 位 ARM 电视盒子。
+            ndk { abiFilters "armeabi-v7a", "arm64-v8a" }
             minifyEnabled true
             shrinkResources true
             signingConfig signingConfigs.release
@@ -40,6 +38,8 @@ android {
         debug {
             debuggable true
             applicationIdSuffix ".qa"
+            // 模拟器使用原生 x86 库，避免 ARM 转译影响软件解码验证。
+            ndk { abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64" }
         }
     }
 
@@ -74,7 +74,8 @@ android {
 // Kotlin 标准库使用当前 Kotlin 插件匹配的版本。
 
 dependencies {
-    implementation "androidx.media3:media3-exoplayer:1.5.1"
+    implementation "androidx.media3:media3-exoplayer:1.7.1"
+    implementation "io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0"
     implementation "androidx.core:core:1.12.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.zxing:core:3.5.3"

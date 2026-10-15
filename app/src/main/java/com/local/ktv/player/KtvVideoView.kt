@@ -13,6 +13,7 @@ import android.view.View
 import android.widget.FrameLayout
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
@@ -21,10 +22,13 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.audio.BaseAudioProcessor
 import androidx.media3.common.util.UnstableApi
-import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.ExoPlaybackException
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.audio.AudioSink
-import androidx.media3.exoplayer.audio.DefaultAudioSink
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.extractor.DefaultExtractorsFactory
+import androidx.media3.extractor.mkv.MatroskaExtractor
+import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.FfmpegLibrary
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import kotlin.math.pow
@@ -39,7 +43,8 @@ class KtvVideoView @JvmOverloads constructor(
     attrs: AttributeSet? = null,
     defStyleAttr: Int = 0,
 ) : FrameLayout(context, attrs, defStyleAttr) {
-    private val surfaceView = KtvSurfaceView(context)
+    private var surfaceView = KtvSurfaceView(context)
+    private var mediaOverlay = false
     private var engine: KtvPlaybackEngine? = null
     private var surfaceCallback: SurfaceHolder.Callback? = null
 
@@ -56,6 +61,7 @@ class KtvVideoView @JvmOverloads constructor(
     }
 
     fun setMediaOverlay(enabled: Boolean) {
+        mediaOverlay = enabled
         surfaceView.setZOrderMediaOverlay(enabled)
     }
 
@@ -87,6 +93,16 @@ class KtvVideoView @JvmOverloads constructor(
     }
 
     internal fun currentHolder(): SurfaceHolder = surfaceView.holder
+
+    /** NextLib 0.9 can leave its CPU producer connected after release. */
+    internal fun recreateDecoderSurface() {
+        surfaceCallback?.let(surfaceView.holder::removeCallback)
+        removeView(surfaceView)
+        surfaceView = KtvSurfaceView(context).also { it.setZOrderMediaOverlay(mediaOverlay) }
+        addView(surfaceView,
+            LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT, Gravity.CENTER))
+        surfaceCallback?.let(surfaceView.holder::addCallback)
+    }
 }
 
 /** Resize behavior ported from the original ResizeSurfaceView, scale mode 1. */
@@ -167,8 +183,10 @@ private class KaraokeAudioProcessor : BaseAudioProcessor() {
 
 /** One Media3 engine retains the page/fullscreen surface and control contracts. */
 @UnstableApi
-class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
-    private val audio = KaraokeAudioProcessor()
+class KtvPlaybackEngine(context: Context, private val audioOnly: Boolean = false) {
+    private val appContext = context.applicationContext
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var audio = KaraokeAudioProcessor()
     private var targetView: KtvVideoView? = null
     private var prepared = false
     private var released = false
@@ -177,23 +195,69 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
     private var errorListener: MediaPlayer.OnErrorListener? = null
     private var videoWidth = 0
     private var videoHeight = 0
-    private val player: ExoPlayer
+    private var mediaGeneration = 0L
+    private var recoveryPending = false
+    private var recovering = false
+    private var recoveryListener: ((Boolean) -> Unit)? = null
+    private var selectedOriginal: Boolean? = null
+    private var recovery = DecoderRecoveryState(PlaybackDecoderSettings.load(appContext))
+    private var audioDecoder = ""
+    private var videoDecoder = ""
+    var hasRenderedFirstFrame = false
+        private set
+    private var player: ExoPlayer = createPlayer()
 
-    init {
-        val factory = object : DefaultRenderersFactory(context.applicationContext) {
-            override fun buildAudioSink(context: Context, enableFloatOutput: Boolean,
-                                        enableAudioTrackPlaybackParams: Boolean): AudioSink =
-                DefaultAudioSink.Builder(context)
-                    .setEnableFloatOutput(false)
-                    .setEnableAudioTrackPlaybackParams(false)
-                    .setAudioProcessors(arrayOf(audio))
-                    .build()
-        }.setEnableDecoderFallback(true)
-        player = ExoPlayer.Builder(context.applicationContext, factory).build()
-        if (audioOnly) player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+    val decoderMode: PlaybackDecoderMode get() = recovery.mode
+    val decoderSummary: String get() =
+        "视频：${videoDecoder.ifBlank { if (audioOnly) "不启用" else "等待播放" }}\n" +
+            "音频：${audioDecoder.ifBlank { "等待播放" }}" +
+            if (recovery.ignoreMatroskaCues) "\n解析：顺序读取（索引异常，暂不支持跳转）" else ""
+
+    fun isSoftwareDecoderAvailable(): Boolean = FfmpegLibrary.isAvailable()
+
+    private fun createPlayer(): ExoPlayer {
+        val instance = ExoPlayer.Builder(appContext,
+            KtvRenderersFactory(appContext, audio, recovery,
+                recovery.mode != PlaybackDecoderMode.SYSTEM && isSoftwareDecoderAvailable()))
+            .setTrackSelector(KtvTrackSelector(appContext))
+            .setMediaSourceFactory(DefaultMediaSourceFactory(appContext,
+                DefaultExtractorsFactory().setMatroskaExtractorFlags(
+                    if (recovery.ignoreMatroskaCues) MatroskaExtractor.FLAG_DISABLE_SEEK_FOR_CUES else 0)))
+            .build()
+        if (audioOnly) instance.trackSelectionParameters = instance.trackSelectionParameters.buildUpon()
             .setTrackTypeDisabled(C.TRACK_TYPE_VIDEO, true).build()
-        player.addListener(object : Player.Listener {
+        instance.addListener(object : Player.Listener {
+            private val firstFrameTimeout = Runnable {
+                if (released || player !== instance || hasRenderedFirstFrame || audioOnly ||
+                    !instance.playWhenReady || instance.playbackState != Player.STATE_READY) return@Runnable
+                val group = instance.currentTracks.groups.firstOrNull { it.type == C.TRACK_TYPE_VIDEO }
+                    ?: return@Runnable
+                val format = group.getTrackFormat(0)
+                onPlayerError(ExoPlaybackException.createForRenderer(
+                    IllegalStateException("解码器就绪后仍未输出视频首帧"),
+                    if (videoDecoder.startsWith("ffmpeg", true)) "FfmpegVideoRenderer" else "MediaCodecVideoRenderer",
+                    0, format, C.FORMAT_HANDLED, false, PlaybackException.ERROR_CODE_DECODING_FAILED))
+            }
+
+            private fun armFirstFrameCheck() {
+                handler.removeCallbacks(firstFrameTimeout)
+                if (!audioOnly && !hasRenderedFirstFrame && instance.playWhenReady &&
+                    instance.playbackState == Player.STATE_READY) {
+                    handler.postDelayed(firstFrameTimeout, 5000L)
+                }
+            }
+
+            override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                if (!released && player === instance) armFirstFrameCheck()
+            }
             override fun onPlaybackStateChanged(state: Int) {
+                if (released || player !== instance) return
+                armFirstFrameCheck()
+                Log.d("KtvPlaybackEngine", "State=$state mode=${recovery.mode} playing=${instance.playWhenReady}")
+                if (state == Player.STATE_READY && recovering) {
+                    recovering = false
+                    recoveryListener?.invoke(false)
+                }
                 if (state == Player.STATE_READY && !prepared) {
                     prepared = true
                     preparedListener?.onPrepared(null)
@@ -201,17 +265,136 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
                     completionListener?.onCompletion(null)
                 }
             }
+
+            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                if (!released && player === instance) selectedOriginal?.let(::selectAudioTrack)
+            }
+
             override fun onVideoSizeChanged(size: VideoSize) {
+                if (released || player !== instance) return
                 videoWidth = size.width
                 videoHeight = size.height
                 targetView?.updateVideoSize(videoWidth, videoHeight)
             }
+
             override fun onPlayerError(error: PlaybackException) {
+                if (released || player !== instance || recoveryPending) return
+                val rendererError = error as? ExoPlaybackException
+                val failedTrack = when (MimeTypes.getTrackType(rendererError?.rendererFormat?.sampleMimeType)) {
+                    C.TRACK_TYPE_AUDIO -> DecoderFailureTrack.AUDIO
+                    C.TRACK_TYPE_VIDEO -> DecoderFailureTrack.VIDEO
+                    else -> DecoderFailureTrack.UNKNOWN
+                }
+                val path = instance.currentMediaItem?.localConfiguration?.uri?.path.orEmpty()
+                val isMatroska = path.endsWith(".mkv", true) || path.endsWith(".webm", true)
+                val containerRecovery = recovery.recoverContainer(error.errorCode, isMatroska,
+                    instance.currentPosition, hasRenderedFirstFrame)
+                val next = containerRecovery ?: recovery.recover(error.errorCode, failedTrack,
+                    failedSoftware = rendererError?.rendererName?.startsWith("Ffmpeg") == true)
+                if (next != null && (containerRecovery != null || isSoftwareDecoderAvailable())) {
+                    // Post out of the player callback; reject recovery after stop/song changes.
+                    recoveryPending = true
+                    val generation = mediaGeneration
+                    Log.w("KtvPlaybackEngine", "Playback recovery code=${error.errorCode} track=$failedTrack cueFallback=${next.ignoreMatroskaCues}")
+                    handler.post {
+                        if (released || generation != mediaGeneration || player !== instance) return@post
+                        recoveryPending = false
+                        try {
+                            rebuildPlayer(next)
+                        } catch (failure: RuntimeException) {
+                            Log.e("KtvPlaybackEngine", "Decoder recovery failed", failure)
+                            prepared = false
+                            errorListener?.onError(null, MediaPlayer.MEDIA_ERROR_UNKNOWN, error.errorCode)
+                        }
+                    }
+                    return
+                }
                 prepared = false
-                Log.e("KtvPlaybackEngine", "Media3 playback failed code=${error.errorCode}", error)
+                recovering = false
+                instance.stop()
+                Log.e("KtvPlaybackEngine", "Playback failed code=${error.errorCode}", error)
                 errorListener?.onError(null, MediaPlayer.MEDIA_ERROR_UNKNOWN, error.errorCode)
             }
         })
+        instance.addAnalyticsListener(object : AnalyticsListener {
+            override fun onRenderedFirstFrame(eventTime: AnalyticsListener.EventTime, output: Any, renderTimeMs: Long) {
+                if (released || player !== instance) return
+                hasRenderedFirstFrame = true
+                Log.i("KtvPlaybackEngine", "First frame mode=${recovery.mode}")
+            }
+            override fun onAudioDecoderInitialized(eventTime: AnalyticsListener.EventTime,
+                decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                if (released || player !== instance) return
+                audioDecoder = decoderName
+                Log.i("KtvPlaybackEngine", "Audio decoder=$decoderName")
+            }
+
+            override fun onVideoDecoderInitialized(eventTime: AnalyticsListener.EventTime,
+                decoderName: String, initializedTimestampMs: Long, initializationDurationMs: Long) {
+                if (released || player !== instance) return
+                videoDecoder = decoderName
+                Log.i("KtvPlaybackEngine", "Video decoder=$decoderName")
+            }
+        })
+        return instance
+    }
+
+    /** Rebuild only the decoder chain, retaining user playback intent and karaoke controls. */
+    private fun rebuildPlayer(next: DecoderRecoveryState) {
+        val old = player
+        val item = old.currentMediaItem
+        val position = old.currentPosition.coerceAtLeast(0)
+        val playWhenReady = old.playWhenReady
+        val parameters = old.playbackParameters
+        val selection = old.trackSelectionParameters.buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO).build()
+        val replacementAudio = KaraokeAudioProcessor().also {
+            it.leftGain = audio.leftGain
+            it.rightGain = audio.rightGain
+            it.channel = audio.channel
+        }
+        // Construct first, so native-load/construction errors leave the old player usable.
+        val previousRecovery = recovery
+        val previousAudio = audio
+        recovery = next
+        audio = replacementAudio
+        val replacement = try {
+            createPlayer()
+        } catch (failure: RuntimeException) {
+            recovery = previousRecovery
+            audio = previousAudio
+            throw failure
+        }
+        if (item != null) recoveryListener?.invoke(true)
+        recovering = item != null
+        old.clearVideoSurface()
+        old.release()
+        player = replacement
+        if (!audioOnly) {
+            targetView?.recreateDecoderSurface()
+            targetView?.updateVideoSize(videoWidth, videoHeight)
+        }
+        audioDecoder = ""
+        videoDecoder = ""
+        hasRenderedFirstFrame = false
+        replacement.trackSelectionParameters = selection
+        replacement.playbackParameters = parameters
+        attachCurrentSurface()
+        if (item != null) {
+            replacement.setMediaItem(item, position)
+            replacement.prepare()
+            replacement.playWhenReady = playWhenReady
+        }
+    }
+
+    fun setDecoderMode(mode: PlaybackDecoderMode) {
+        if (released) return
+        check(mode != PlaybackDecoderMode.SOFTWARE || isSoftwareDecoderAvailable()) {
+            "兼容解码库未能加载，请使用系统解码"
+        }
+        mediaGeneration++
+        recoveryPending = false
+        rebuildPlayer(DecoderRecoveryState(mode, ignoreMatroskaCues = recovery.ignoreMatroskaCues))
     }
 
     val isPlaying: Boolean get() = !released && player.isPlaying
@@ -223,6 +406,7 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
     fun setOnPreparedListener(listener: MediaPlayer.OnPreparedListener?) { preparedListener = listener }
     fun setOnCompletionListener(listener: MediaPlayer.OnCompletionListener?) { completionListener = listener }
     fun setOnErrorListener(listener: MediaPlayer.OnErrorListener?) { errorListener = listener }
+    fun setOnDecoderRecoveryListener(listener: ((Boolean) -> Unit)?) { recoveryListener = listener }
 
     fun attach(view: KtvVideoView) {
         targetView = view
@@ -238,61 +422,98 @@ class KtvPlaybackEngine(context: Context, audioOnly: Boolean = false) {
                 if (targetView === view && !released) player.clearVideoSurface(holder.surface)
             }
         })
-        if (view.currentHolder().surface.isValid && !released) {
-            player.setVideoSurface(view.currentHolder().surface)
-        }
+        attachCurrentSurface()
+    }
+
+    private fun attachCurrentSurface() {
+        val surface = targetView?.currentHolder()?.surface
+        if (surface?.isValid == true && !released) player.setVideoSurface(surface)
     }
 
     fun setVideoUri(uri: Uri) {
         check(!released) { "播放器已释放" }
+        recovering = false
+        mediaGeneration++
+        recoveryPending = false
+        // A software recovery is scoped to one media item, never to the next song.
+        val initial = DecoderRecoveryState(PlaybackDecoderSettings.load(appContext))
+        if (recovery != initial) {
+            player.stop()
+            player.clearMediaItems()
+            rebuildPlayer(initial)
+        }
         prepared = false
+        selectedOriginal = null
+        audioDecoder = ""
+        videoDecoder = ""
+        hasRenderedFirstFrame = false
+        videoWidth = 0
+        videoHeight = 0
+        targetView?.updateVideoSize(0, 0)
         player.playWhenReady = false
         player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
             .clearOverridesOfType(C.TRACK_TYPE_AUDIO).build()
         player.setMediaItem(MediaItem.fromUri(uri))
         player.prepare()
     }
+
     fun start() { if (!released) player.play() }
     fun pause() { if (!released) player.pause() }
     fun seekTo(positionMs: Int) { if (!released) player.seekTo(positionMs.coerceAtLeast(0).toLong()) }
     fun stop() {
         if (released) return
+        mediaGeneration++
+        recoveryPending = false
+        recovering = false
         player.stop()
         player.clearMediaItems()
         prepared = false
+        selectedOriginal = null
     }
+
     fun setVolume(left: Float, right: Float) {
         audio.leftGain = left.coerceIn(0f, 1f)
         audio.rightGain = right.coerceIn(0f, 1f)
     }
+
     fun setTone(step: Int) {
         if (!released) player.playbackParameters =
             PlaybackParameters(1f, 2.0.pow(step.coerceIn(-5, 5) / 12.0).toFloat())
     }
+
     fun audioTrackCount(): Int = if (released) 0 else
         player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }.sumOf { it.length }
+
     fun selectAudioTrack(original: Boolean): Boolean {
         if (released) return false
         val tracks = player.currentTracks.groups.filter { it.type == C.TRACK_TYPE_AUDIO }
             .flatMap { group -> (0 until group.length).map { index -> group to index } }
         if (tracks.size < 2) return false
+        selectedOriginal = original
         val (group, index) = tracks[if (original) 0 else 1]
         if (!group.isTrackSupported(index)) return false
-        player.trackSelectionParameters = player.trackSelectionParameters.buildUpon()
+        val parameters = player.trackSelectionParameters.buildUpon()
             .setOverrideForType(TrackSelectionOverride(group.mediaTrackGroup, index)).build()
+        if (parameters != player.trackSelectionParameters) player.trackSelectionParameters = parameters
         return true
     }
+
     fun selectAudioChannel(channel: Int, volume: Float) {
         audio.channel = channel
         setVolume(volume, volume)
     }
+
     fun release() {
         if (released) return
         released = true
+        mediaGeneration++
+        recoveryPending = false
+        handler.removeCallbacksAndMessages(null)
         player.release()
         targetView = null
         preparedListener = null
         completionListener = null
         errorListener = null
+        recoveryListener = null
     }
 }

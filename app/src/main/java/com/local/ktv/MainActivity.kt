@@ -73,6 +73,7 @@ import com.local.ktv.SongOkDownloadManager.getLocalFile
 import com.local.ktv.SongOkDownloadManager.isDownloaded
 import com.local.ktv.player.PlayerControllerView
 import com.local.ktv.player.PlayerControllerView.OnControlListener
+import com.local.ktv.player.DecoderRecoveryState
 import com.local.ktv.player.KtvPlaybackEngine
 import com.local.ktv.player.KtvVideoView
 import com.local.ktv.player.VocalSwitchHelper
@@ -195,7 +196,7 @@ class MainActivity : AppCompatActivity() {
     /** 播放器控制层(叠加在 player 之上)  */
     private var playerController: PlayerControllerView? = null
     private var currentMediaPlayer: MediaPlayer? = null
-    private var vocalPlayer: MediaPlayer? = null
+    private var vocalPlayer: KtvPlaybackEngine? = null
     private var embeddedVocalEngine: KtvPlaybackEngine? = null
     private var vocalPlayerPrepared = false
     private var pendingVocalPosition = 0
@@ -451,6 +452,16 @@ class MainActivity : AppCompatActivity() {
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager?
         // 初始化 API 客户端 (歌曲下载链接)
         playbackEngine = KtvPlaybackEngine(applicationContext)
+        playbackEngine.setOnDecoderRecoveryListener { recovering ->
+            if (recovering) {
+                pauseVocalIfReady()
+            } else {
+                val position = player?.currentPosition ?: 0
+                vocalPlayer?.seekTo(adjustedAudioPosition(position))
+                embeddedVocalEngine?.seekTo(adjustedAudioPosition(position + 120))
+                if (playWhenPrepared) startVocalIfReady() else pauseVocalIfReady()
+            }
+        }
         SongOkDownloadManager.reclaimCache = { choice, requiredAvailable ->
             purgeColdDownloadedFiles(choice, requiredAvailable)
         }
@@ -4626,7 +4637,8 @@ class MainActivity : AppCompatActivity() {
             if (generation != playbackGeneration || currentSong?.equals(song) != true) return@OnErrorListener true
             playbackPreparing = false
             Log.e(TAG, "MediaPlayer error what=" + what + " extra=" + extra)
-            if (songRetryCount < 2 && song != null && (song.isOpenList() || song.hasLocalFile())) {
+            if (!DecoderRecoveryState.isDecoderFailure(extra) && songRetryCount < 2 &&
+                song != null && (song.isOpenList() || song.hasLocalFile())) {
                 songRetryCount++
                 val retry = songRetryCount
                 main.postDelayed(Runnable {
@@ -4637,6 +4649,7 @@ class MainActivity : AppCompatActivity() {
                 }, 700L * retry)
             } else {
                 songRetryCount = 0
+                if (DecoderRecoveryState.isDecoderFailure(extra)) toast("当前歌曲解码失败，正在播放下一首")
                 main.post(Runnable { this.playNext() })
             }
             true
@@ -4970,6 +4983,8 @@ class MainActivity : AppCompatActivity() {
     private fun applyPlaybackMode() {
         val videoPlayer = player ?: return
         videoPlayer.setTone(tone)
+        vocalPlayer?.setTone(tone)
+        embeddedVocalEngine?.setTone(tone)
         val external = prepareExternalVocal(
             currentSong,
             player?.currentPosition ?: 0
@@ -5102,29 +5117,40 @@ class MainActivity : AppCompatActivity() {
         releaseVocalPlayer()
         try {
             embeddedDualTrackMode = false
-            val candidate = MediaPlayer()
+            val candidate = KtvPlaybackEngine(this, audioOnly = true)
             vocalPlayer = candidate
             vocalPlayerPrepared = false
             pendingVocalPosition = adjustedAudioPosition(positionMs)
             currentVocalPath = path
-            candidate.setDataSource(path)
-            candidate.setAudioStreamType(AudioManager.STREAM_MUSIC)
-            candidate.setOnCompletionListener(OnCompletionListener { _: MediaPlayer? -> })
-            candidate.setOnPreparedListener { preparedPlayer ->
-                if (vocalPlayer !== preparedPlayer || currentVocalPath != path) {
-                    runCatching { preparedPlayer.release() }
+            candidate.setVolume(0f, 0f)
+            candidate.setTone(tone)
+            candidate.setOnCompletionListener(null)
+            candidate.setOnPreparedListener {
+                if (vocalPlayer !== candidate || currentVocalPath != path) {
+                    candidate.release()
                     return@setOnPreparedListener
                 }
                 vocalPlayerPrepared = true
-                if (pendingVocalPosition > 0) runCatching { preparedPlayer.seekTo(pendingVocalPosition) }
+                val position = adjustedAudioPosition(player?.currentPosition ?: positionMs)
+                if (position > 0) candidate.seekTo(position)
                 applyVocalVolume()
                 if (playWhenPrepared) startVocalIfReady() else pauseVocalIfReady()
             }
-            candidate.setOnErrorListener { failedPlayer, _, _ ->
-                if (vocalPlayer === failedPlayer) releaseVocalPlayer()
+            candidate.setOnErrorListener { _, _, _ ->
+                if (vocalPlayer === candidate) {
+                    releaseVocalPlayer()
+                    player?.setPlaybackVolume(musicVolume / 100f, musicVolume / 100f)
+                    toast("外置原伴唱播放失败，已恢复主音轨")
+                }
                 true
             }
-            candidate.prepareAsync()
+            candidate.setVideoUri(
+                when {
+                    path.startsWith("content://") || path.startsWith("http://") || path.startsWith("https://") ->
+                        Uri.parse(path)
+                    else -> Uri.fromFile(File(path))
+                },
+            )
             return true
         } catch (e: Exception) {
             releaseVocalPlayer()
@@ -5163,6 +5189,7 @@ class MainActivity : AppCompatActivity() {
             embeddedVocalEngine = candidate
             vocalPlayerPrepared = false
             candidate.setVolume(0f, 0f)
+            candidate.setTone(tone)
             candidate.setOnCompletionListener(null)
             candidate.setOnPreparedListener {
                 if (embeddedVocalEngine !== candidate || currentVocalPath != path || !embeddedDualTrackMode) {
@@ -7933,6 +7960,7 @@ class MainActivity : AppCompatActivity() {
         btnBack?.nextFocusDownId = settingsAdapter.firstActionId
         if (requestInitialFocus) settingsAdapter.requestInitialFocus(songList!!)
     }
+
 
     private fun isNetworkConnected(): Boolean {
         val manager = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager

@@ -1,0 +1,15 @@
+10-15 08:21:44.958 13043 14834 F libc    : Fatal signal 11 (SIGSEGV), code 1, fault addr 0xa862c000 in tid 14834 (ExoPlayer:Playb)
+10-15 08:21:45.017 14841 14841 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+10-15 08:21:45.018 14841 14841 F DEBUG   : Build fingerprint: 'samsung/dream2qltezh/dream2qltechn:7.1/N2G48H/G9550ZHU1AQEE:user/release-keys'
+10-15 08:21:45.018 14841 14841 F DEBUG   : Revision: '12'
+10-15 08:21:45.018 14841 14841 F DEBUG   : ABI: 'x86'
+10-15 08:21:45.018 14841 14841 F DEBUG   : pid: 13043, tid: 14834, name: ExoPlayer:Playb  >>> com.local.ktv.qa <<<
+10-15 08:21:45.018 14841 14841 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0xa862c000
+10-15 08:21:45.018 14841 14841 F DEBUG   :     eax 00000000  ebx a862bffd  ecx 00000003  edx 00000004
+10-15 08:21:45.018 14841 14841 F DEBUG   :     esi b20e91b8  edi b20e91b8
+10-15 08:21:45.018 14841 14841 F DEBUG   :     xcs 00000073  xds 0000007b  xes 0000007b  xfs 0000003b  xss 0000007b
+10-15 08:21:45.018 14841 14841 F DEBUG   :     eip b4bf5230  ebp b34444e8  esp b34444b0  flags 00210202
+10-15 08:21:45.018 14841 14841 F DEBUG   :
+10-15 08:21:45.018 14841 14841 F DEBUG   : backtrace:
+10-15 08:21:45.018 14841 14841 F DEBUG   :     #00 pc 0007a230  /data/app/com.local.ktv.qa-1/lib/x86/libswscale.so (offset 0xf000)
+10-15 08:21:45.161  2180 14846 W ActivityManager:   Force finishing activity com.local.ktv.qa/com.local.ktv.DecoderTestActivity

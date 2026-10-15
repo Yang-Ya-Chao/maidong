@@ -72,10 +72,10 @@
             </intent-filter>
         </activity>
 
-        <!-- 开机自启动接收器:设备启动完成后自动进入 KTV 主界面 -->
+        <!-- 开机自启动接收器：默认关闭 -->
         <receiver
             android:name=".BootReceiver"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />

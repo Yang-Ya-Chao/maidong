@@ -1,0 +1,16 @@
+10-15 08:16:03.883 10872 12936 F libc    : Fatal signal 11 (SIGSEGV), code 1, fault addr 0xa7d21000 in tid 12936 (ExoPlayer:Playb)
+10-15 08:16:03.957 12946 12946 F DEBUG   : *** *** *** *** *** *** *** *** *** *** *** *** *** *** *** ***
+10-15 08:16:03.957 12946 12946 F DEBUG   : Build fingerprint: 'samsung/dream2qltezh/dream2qltechn:7.1/N2G48H/G9550ZHU1AQEE:user/release-keys'
+10-15 08:16:03.957 12946 12946 F DEBUG   : Revision: '12'
+10-15 08:16:03.957 12946 12946 F DEBUG   : ABI: 'x86'
+10-15 08:16:03.957 12946 12946 F DEBUG   : pid: 10872, tid: 12936, name: ExoPlayer:Playb  >>> com.local.ktv.qa <<<
+10-15 08:16:03.957 12946 12946 F DEBUG   : signal 11 (SIGSEGV), code 1 (SEGV_MAPERR), fault addr 0xa7d21000
+10-15 08:16:03.957 12946 12946 F DEBUG   :     eax 0000006d  ebx b3c7cfcc  ecx 0000006d  edx a7d20ffd
+10-15 08:16:03.957 12946 12946 F DEBUG   :     esi 00000004  edi adbfe1b8
+10-15 08:16:03.957 12946 12946 F DEBUG   :     xcs 00000073  xds 0000007b  xes 0000007b  xfs 0000003b  xss 0000007b
+10-15 08:16:03.957 12946 12946 F DEBUG   :     eip 0e41137c  ebp 10182000  esp b38f6bc8  flags 00210282
+10-15 08:16:03.957 12946 12946 F DEBUG   :
+10-15 08:16:03.957 12946 12946 F DEBUG   : backtrace:
+10-15 08:16:03.957 12946 12946 F DEBUG   :     #00 pc 0038237c  <anonymous:0e08f000>
+10-15 08:16:04.167  2180 12952 W ActivityManager:   Force finishing activity com.local.ktv.qa/com.local.ktv.DecoderTestActivity
+10-15 08:16:04.216  2180  2561 I ActivityManager: Process com.local.ktv.qa (pid 10872) has died
