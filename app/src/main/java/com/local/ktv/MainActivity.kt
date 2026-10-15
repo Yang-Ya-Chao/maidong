@@ -397,6 +397,26 @@ class MainActivity : AppCompatActivity() {
 
     private class LyricLine(val timeMs: Int, val text: String?)
 
+    private var tvDisplayWidth = 0
+    private var tvDisplayHeight = 0
+
+    override fun attachBaseContext(newBase: android.content.Context) {
+        val metrics = newBase.resources.displayMetrics
+        tvDisplayWidth = metrics.widthPixels
+        tvDisplayHeight = metrics.heightPixels
+        super.attachBaseContext(TvUiScale.wrap(newBase))
+    }
+
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        val metrics = resources.displayMetrics
+        if (TvUiScale.isTelevision(this) &&
+            (metrics.widthPixels != tvDisplayWidth || metrics.heightPixels != tvDisplayHeight)) {
+            // Manifest 保留了 screenSize 处理；分辨率改变后重新创建全部控件和弹窗上下文。
+            recreate()
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         getWindow().getDecorView().setSystemUiVisibility(
