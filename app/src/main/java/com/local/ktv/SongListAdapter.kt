@@ -42,10 +42,136 @@ class SongListAdapter(
     private val nextPageFocusId: Int,
     private val stateFor: (Song) -> SongRowState,
     private val callbacks: SongListCallbacks,
+    private val catalogRows: Int = 5,
+    private val headerHeightDp: Int = 0,
 ) : BaseAdapter() {
     private val density = context.resources.displayMetrics.density
     private val columns = if (mode in SINGLE_COLUMN_MODES) 1 else 2
     private val cardIds = HashMap<String, Int>()
+    private var renderedKeys = songs.map(::songKey)
+    private data class CatalogBinding(
+        val key: String, val title: String?, val singer: String?,
+        val state: SongRowState, val index: Int, val lastRow: Boolean
+    )
+    private data class CatalogViews(
+        var binding: CatalogBinding, val ordered: View, val downloading: TextView,
+        val failed: View, val online: View,
+    )
+
+    private data class SingleViews(
+        var binding: CatalogBinding, val render: (SongRowState) -> Unit,
+    )
+
+    private fun updateSingleRow(row: LinearLayout, song: Song, index: Int): Boolean {
+        val views = row.tag as? SingleViews ?: return false
+        val binding = CatalogBinding(songKey(song), song.title, song.singer, stateFor(song), index, index == count - 1)
+        if (views.binding.copy(state = binding.state) != binding) return false
+        if (views.binding.state != binding.state) {
+            views.binding = binding
+            views.render(binding.state)
+            row.contentDescription = songSpokenLabel(song, binding.state)
+        }
+        return true
+    }
+
+    private fun bindSingleRow(row: LinearLayout, song: Song, index: Int,
+                              actions: List<View> = emptyList(), render: (SongRowState) -> Unit) {
+        val state = stateFor(song)
+        row.tag = SingleViews(
+            CatalogBinding(songKey(song), song.title, song.singer, state, index, index == count - 1), render)
+        configureSongCard(row, song, index)
+        installSingleNavigation(row, song, index, actions)
+        render(state)
+    }
+
+    private fun installSingleNavigation(row: LinearLayout, song: Song, index: Int, actions: List<View>) {
+        row.descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
+        fun visibleActions() = actions.filter { it.visibility == View.VISIBLE && it.isEnabled }
+        fun vertical(key: Int): Boolean {
+            val next = index + if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1
+            if (next !in songs.indices) {
+                if (mode == "rank" && key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) {
+                    return row.rootView.findViewById<View>(previousPageFocusId)?.requestFocus() == true
+                }
+                return false
+            }
+            val list = row.parent as? android.widget.ListView ?: return false
+            val target = list.getChildAt(next - list.firstVisiblePosition)
+            if (target?.requestFocus() != true) {
+                list.setSelectionFromTop(next, if (next > index) row.height else 0)
+                list.post { list.getChildAt(next - list.firstVisiblePosition)?.requestFocus() }
+            }
+            return true
+        }
+        row.setOnKeyListener { _, key, event ->
+            when (key) {
+                android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                    val target = visibleActions().firstOrNull()
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN) target?.requestFocus() == true
+                    else target != null
+                }
+                android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                    if (event.action == android.view.KeyEvent.ACTION_DOWN) vertical(key) else true
+                else -> false
+            }
+        }
+        actions.forEachIndexed { actionIndex, button ->
+            button.setAccessibleFocus(FOCUS_PREFIX + songKey(song) + "|action|" + actionIndex,
+                "歌曲操作，${song.title.orEmpty()}")
+            button.setOnKeyListener { _, key, event ->
+                when (key) {
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        if (event.action == android.view.KeyEvent.ACTION_DOWN) {
+                            val visible = visibleActions()
+                            val at = visible.indexOf(button)
+                            val target = if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT)
+                                visible.getOrNull(at - 1) ?: row
+                            else visible.getOrNull(at + 1) ?: button
+                            target.requestFocus()
+                        }
+                        true
+                    }
+                    android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
+                        if (event.action == android.view.KeyEvent.ACTION_DOWN) vertical(key) else true
+                    else -> false
+                }
+            }
+        }
+    }
+
+    override fun notifyDataSetChanged() {
+        renderedKeys = songs.map(::songKey)
+        super.notifyDataSetChanged()
+    }
+
+    /** State-only updates keep the focused card attached, including the right column. */
+    fun refreshVisibleStates(list: android.widget.ListView, rowOffset: Int = 0): Boolean {
+        if (renderedKeys != songs.map(::songKey)) return false
+        repeat(list.childCount) rowLoop@ { child ->
+            val position = list.firstVisiblePosition + child - rowOffset
+            if (position < 0) return@rowLoop
+            val row = list.getChildAt(child) as? LinearLayout ?: return false
+            if (columns == 1) {
+                val song = songs.getOrNull(position) ?: return false
+                if (!updateSingleRow(row, song, position)) return false
+                return@rowLoop
+            }
+            repeat(columns) cell@ { column ->
+                val index = position * columns + column
+                val song = songs.getOrNull(index) ?: return@cell
+                val cell = row.getChildAt(column) as? LinearLayout ?: return false
+                createCatalogCell(song, index, column, position == count - 1, cell)
+            }
+        }
+        return true
+    }
+
+    private fun pageRowHeight(parent: ViewGroup, position: Int, rows: Int): Int {
+        val available = (maxOf(parent.height, parent.measuredHeight) -
+            parent.paddingTop - parent.paddingBottom - dp(headerHeightDp)).coerceAtLeast(0)
+        val index = position % rows
+        return maxOf(dp(60), available * (index + 1) / rows - available * index / rows)
+    }
 
     private fun cardId(index: Int): Int = cardIds.getOrPut(songKey(songs[index])) { View.generateViewId() }
 
@@ -65,26 +191,36 @@ class SongListAdapter(
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         if (columns == 1) {
-            return createSingleRow(songs[position], position).apply {
+            val attached = (convertView as? LinearLayout)?.takeIf { it.isAttachedToWindow }
+            val row = if (attached != null && updateSingleRow(attached, songs[position], position)) attached
+                else createSingleRow(songs[position], position)
+            return row.apply {
+                if (mode == "rank") layoutParams =
+                    android.widget.AbsListView.LayoutParams(-1, pageRowHeight(parent, position, 6))
                 if (position == count - 1) nextFocusDownId = previousPageFocusId
             }
         }
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            val cells = mutableListOf<View>()
-            repeat(2) { column ->
-                val index = position * 2 + column
-                val cell = songs.getOrNull(index)?.let {
-                    createCatalogCell(it, index, column, position == count - 1)
-                } ?: View(context)
-                cells += cell
-                addView(
-                    cell,
-                    LinearLayout.LayoutParams(0, dp(60), 1f),
-                )
+        // A measured scrap row has never attached its descendants to the window.
+        // Reuse only attached rows so focus never targets a detached measured card.
+        val row = (convertView as? LinearLayout)?.takeIf { it.isAttachedToWindow }
+            ?: LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
             }
+        row.layoutParams = android.widget.AbsListView.LayoutParams(-1, pageRowHeight(parent, position, catalogRows))
+        while (row.childCount > columns) row.removeViewAt(row.childCount - 1)
+        repeat(columns) { column ->
+            val index = position * columns + column
+            val cell = songs.getOrNull(index)?.let {
+                createCatalogCell(it, index, column, position == count - 1,
+                    row.getChildAt(column) as? LinearLayout)
+            } ?: row.getChildAt(column)?.takeUnless { it is LinearLayout } ?: View(context)
+            if (row.getChildAt(column) !== cell) {
+                if (row.childCount > column) row.removeViewAt(column)
+                row.addView(cell, column, LinearLayout.LayoutParams(0, -1, 1f))
+            } else cell.layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
         }
+        return row
     }
 
     private fun createSingleRow(song: Song, index: Int): View = when (mode) {
@@ -95,18 +231,30 @@ class SongListAdapter(
         else -> createCatalogCell(song, index, 0, index == count - 1)
     }
 
-    private fun createCatalogCell(song: Song, songIndex: Int, column: Int, lastRow: Boolean): View {
+    private fun createCatalogCell(
+        song: Song, songIndex: Int, column: Int, lastRow: Boolean, recycled: LinearLayout? = null
+    ): View {
         val state = stateFor(song)
-        return LinearLayout(context).apply {
+        val binding = CatalogBinding(songKey(song), song.title, song.singer, state, songIndex, lastRow)
+        val card = recycled ?: LinearLayout(context)
+        val previous = card.tag as? CatalogViews
+        if (previous?.binding?.copy(state = state) == binding) {
+            if (previous.binding.state != state) {
+                previous.binding = binding
+                updateCatalogState(card, song, state, previous)
+            }
+            return card
+        }
+        card.removeAllViews()
+        return card.apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
             setPadding(dp(12), dp(4), 0, dp(4))
-            setBackgroundResource(R.drawable.ott_bg_item)
+            if (background == null) setBackgroundResource(R.drawable.ott_bg_item)
             val info = songInfo(song, stacked = true)
             addView(info, LinearLayout.LayoutParams(0, dp(52), 1f))
-            if (!state.local || state.queued) {
-                addView(icon(if (state.queued) R.drawable.ic_order_song else R.drawable.ott_ic_download, null), LinearLayout.LayoutParams(dp(40), dp(40)))
-            }
+            val views = addStateSlot(this, song, binding)
+            tag = views
             addView(icon(R.drawable.ott_ic_more, null), LinearLayout.LayoutParams(dp(40), dp(40)))
             configureSongCard(this, song, songIndex)
             if (songIndex >= columns) nextFocusUpId = cardId(songIndex - columns)
@@ -116,152 +264,160 @@ class SongListAdapter(
             if (lastRow) {
                 nextFocusDownId = if (column == 0) previousPageFocusId else nextPageFocusId
             }
+            setOnKeyListener { view, key, event ->
+                val targetId = when (key) {
+                    android.view.KeyEvent.KEYCODE_DPAD_UP -> view.nextFocusUpId
+                    android.view.KeyEvent.KEYCODE_DPAD_DOWN -> view.nextFocusDownId
+                    android.view.KeyEvent.KEYCODE_DPAD_LEFT -> view.nextFocusLeftId
+                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> view.nextFocusRightId
+                    else -> View.NO_ID
+                }
+                val target = if (targetId != View.NO_ID) view.rootView.findViewById<View>(targetId) else null
+                if (target == null || !target.isAttachedToWindow || !target.isShown) false
+                else if (event.action == android.view.KeyEvent.ACTION_DOWN) target.requestFocus()
+                else event.action == android.view.KeyEvent.ACTION_UP
+            }
         }
+    }
+
+    private fun addStateSlot(card: LinearLayout, song: Song, binding: CatalogBinding): CatalogViews {
+        val slot = android.widget.FrameLayout(context)
+        val ordered = icon(R.drawable.ic_order_song, null)
+        val downloading = text("", 14, Color.WHITE, Gravity.CENTER)
+        val failed = icon(R.drawable.ic_download_retry, null)
+        val online = icon(R.drawable.ott_ic_download, null)
+        listOf(ordered, failed, online).forEach { view ->
+            slot.addView(view, android.widget.FrameLayout.LayoutParams(dp(40), dp(40), Gravity.CENTER))
+        }
+        slot.addView(downloading, android.widget.FrameLayout.LayoutParams(-1, -1))
+        card.addView(slot, LinearLayout.LayoutParams(dp(64), dp(40)))
+        return CatalogViews(binding, ordered, downloading, failed, online).also {
+            updateCatalogState(card, song, binding.state, it)
+        }
+    }
+
+    private fun updateCatalogState(card: View, song: Song, state: SongRowState, views: CatalogViews) {
+        val ordered = state.queued || state.current
+        views.ordered.visibility = if (ordered) View.VISIBLE else View.INVISIBLE
+        views.downloading.visibility = if (!ordered && state.downloading) View.VISIBLE else View.INVISIBLE
+        views.failed.visibility = if (!ordered && !state.downloading && state.failed) View.VISIBLE else View.INVISIBLE
+        views.online.visibility = if (!ordered && !state.downloading && !state.failed && !state.local)
+            View.VISIBLE else View.INVISIBLE
+        val progress = "↓ ${state.progress}%"
+        if (views.downloading.text.toString() != progress) views.downloading.text = progress
+        card.contentDescription = songSpokenLabel(song, state)
+    }
+
+    private fun songSpokenLabel(song: Song, state: SongRowState): String {
+        val stateText = when {
+            state.current -> "正在播放"
+            state.queued -> "已点"
+            state.downloading -> "正在下载百分之${state.progress}"
+            state.local -> "已下载"
+            else -> "未下载"
+        }
+        return "歌曲，${song.title.orEmpty()}，歌手，${song.singer.orEmpty()}，$stateText，双击点歌，长按查看更多"
     }
 
     private fun createRankRow(song: Song, index: Int): View {
-        val state = stateFor(song)
         val order = pageOffset + index + 1
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundResource(R.drawable.ott_bg_item)
-            val badge = if (order <= 3) {
-                icon(
-                    intArrayOf(R.drawable.ic_rank_order_1, R.drawable.ic_rank_order_2, R.drawable.ic_rank_order_3)[order - 1],
-                    null,
-                )
-            } else {
-                text(order.toString(), 16, Color.WHITE, Gravity.CENTER)
-            }
+        return singleRow(R.drawable.ott_bg_item).apply {
+            val badge = if (order <= 3) icon(
+                intArrayOf(R.drawable.ic_rank_order_1, R.drawable.ic_rank_order_2, R.drawable.ic_rank_order_3)[order - 1], null)
+                else text(order.toString(), 16, Color.WHITE, Gravity.CENTER)
             addView(badge, LinearLayout.LayoutParams(dp(47), dp(48)))
             addView(songInfo(song, stacked = false), LinearLayout.LayoutParams(0, dp(48), 1f))
-            if (!state.local || state.queued) {
-                addView(icon(if (state.queued) R.drawable.ic_order_song else R.drawable.ott_ic_download, null), LinearLayout.LayoutParams(dp(40), dp(40)))
-            }
+            val views = addStateSlot(this, song, CatalogBinding(
+                songKey(song), song.title, song.singer, stateFor(song), index, index == count - 1))
             addView(icon(R.drawable.ott_ic_more, null), LinearLayout.LayoutParams(dp(40), dp(40)))
-            configureSongCard(this, song, index)
+            bindSingleRow(this, song, index) { state -> updateCatalogState(this, song, state, views) }
         }
     }
 
-    private fun createOrderedRow(song: Song, index: Int): View {
-        val state = stateFor(song)
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundResource(R.drawable.ott_bg_download)
-            addView(
-                if (state.current) icon(R.drawable.ott_ic_playing, null)
-                else text((index + 1).toString(), 16, Color.WHITE, Gravity.CENTER),
-                LinearLayout.LayoutParams(dp(47), dp(48)),
-            )
-            addView(songInfo(song, stacked = false), LinearLayout.LayoutParams(0, dp(48), 1f))
-            if (!state.current) {
-                addView(icon(R.drawable.ic_add_to_top) { callbacks.onTop(song) }, LinearLayout.LayoutParams(dp(36), dp(36)))
-                addView(icon(R.drawable.ic_delete) { callbacks.onDelete(song) }, LinearLayout.LayoutParams(dp(36), dp(36)))
-            }
-            configureSongCard(this, song, index)
-        }
+    private fun singleRow(backgroundId: Int) = LinearLayout(context).apply {
+        orientation = LinearLayout.HORIZONTAL
+        gravity = Gravity.CENTER_VERTICAL
+        setBackgroundResource(backgroundId)
     }
 
-    private fun createDownloadRow(song: Song, index: Int): View {
-        val state = stateFor(song)
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            gravity = Gravity.CENTER_VERTICAL
-            setBackgroundResource(R.drawable.ott_bg_download)
-            addView(text((index + 1).toString(), 16, Color.WHITE, Gravity.CENTER), LinearLayout.LayoutParams(dp(47), dp(48)))
+    private fun createOrderedRow(song: Song, index: Int): View =
+        singleRow(R.drawable.ott_bg_download).apply {
+            val slot = android.widget.FrameLayout(context)
+            val number = text((index + 1).toString(), 16, Color.WHITE, Gravity.CENTER)
+            val playing = icon(R.drawable.ott_ic_playing, null)
+            slot.addView(number, android.widget.FrameLayout.LayoutParams(-1, -1))
+            slot.addView(playing, android.widget.FrameLayout.LayoutParams(-1, -1))
+            addView(slot, LinearLayout.LayoutParams(dp(47), dp(48)))
             addView(songInfo(song, stacked = false), LinearLayout.LayoutParams(0, dp(48), 1f))
-            if (state.downloading) {
-                addView(ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
-                    max = 100
-                    progress = state.progress
-                    progressDrawable = context.getDrawable(R.drawable.bg_download_progress)
-                }, LinearLayout.LayoutParams(dp(90), dp(8)).apply { marginEnd = dp(6) })
+            val top = icon(R.drawable.ic_add_to_top) { callbacks.onTop(song) }
+            val delete = icon(R.drawable.ic_delete) { callbacks.onDelete(song) }
+            listOf(top, delete).forEach { addView(it, LinearLayout.LayoutParams(dp(36), dp(36))) }
+            bindSingleRow(this, song, index, listOf(top, delete)) { state ->
+                number.visibility = if (state.current) View.INVISIBLE else View.VISIBLE
+                playing.visibility = if (state.current) View.VISIBLE else View.INVISIBLE
+                if (state.current && (top.hasFocus() || delete.hasFocus())) requestFocus()
+                top.visibility = if (state.current) View.INVISIBLE else View.VISIBLE
+                delete.visibility = top.visibility
             }
-            when {
-                state.failed || state.paused -> addView(
-                    icon(R.drawable.ic_download_retry) { callbacks.onPauseResume(song) },
-                    LinearLayout.LayoutParams(dp(36), dp(36)),
-                )
-                state.downloading -> addView(
-                    icon(R.drawable.ic_pause) { callbacks.onPauseResume(song) },
-                    LinearLayout.LayoutParams(dp(36), dp(36)),
-                )
-                state.local -> addView(
-                    icon(R.drawable.ott_ic_play) { callbacks.onPrimary(song) },
-                    LinearLayout.LayoutParams(dp(36), dp(36)),
-                )
+        }
+
+    private fun createDownloadRow(song: Song, index: Int): View =
+        singleRow(R.drawable.ott_bg_download).apply {
+            addView(text((index + 1).toString(), 16, Color.WHITE, Gravity.CENTER),
+                LinearLayout.LayoutParams(dp(47), dp(48)))
+            addView(songInfo(song, stacked = false), LinearLayout.LayoutParams(0, dp(48), 1f))
+            val progress = ProgressBar(context, null, android.R.attr.progressBarStyleHorizontal).apply {
+                max = 100
+                progressDrawable = context.getDrawable(R.drawable.bg_download_progress)
             }
-            addView(icon(R.drawable.ic_delete) { callbacks.onDelete(song) }, LinearLayout.LayoutParams(dp(36), dp(36)))
-            configureSongCard(this, song, index)
-            descendantFocusability = ViewGroup.FOCUS_BEFORE_DESCENDANTS
-            val row = this
-            val actions = (0 until childCount).map(::getChildAt).filter { it.isClickable }
-            nextFocusRightId = actions.firstOrNull()?.id ?: id
-            if (index > 0) nextFocusUpId = cardId(index - 1)
-            if (index + 1 < songs.size) nextFocusDownId = cardId(index + 1)
-            fun navigateVertical(key: Int): Boolean {
-                val next = index + if (key == android.view.KeyEvent.KEYCODE_DPAD_DOWN) 1 else -1
-                if (next !in songs.indices) return false
-                val list = row.parent as? android.widget.ListView ?: return false
-                val visible = list.getChildAt(next - list.firstVisiblePosition)
-                if (visible?.requestFocus() != true) {
-                    list.setSelectionFromTop(next, if (next > index) height else 0)
-                    list.post { list.getChildAt(next - list.firstVisiblePosition)?.requestFocus() }
-                }
-                return true
-            }
-            row.setOnKeyListener { _, key, event ->
-                when (key) {
-                    android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                        if (event.action == android.view.KeyEvent.ACTION_DOWN) actions.firstOrNull()?.requestFocus()
-                        actions.isNotEmpty()
-                    }
-                    android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
-                        if (event.action == android.view.KeyEvent.ACTION_DOWN) navigateVertical(key) else false
-                    else -> false
+            addView(progress, LinearLayout.LayoutParams(dp(90), dp(8)).apply { marginEnd = dp(6) })
+            val primary = android.widget.FrameLayout(context).apply {
+                id = View.generateViewId()
+                installPressAnimation(this)
+                setOnClickListener {
+                    val state = stateFor(song)
+                    if (state.failed || state.paused || state.downloading) callbacks.onPauseResume(song)
+                    else callbacks.onPrimary(song)
                 }
             }
-            actions.forEachIndexed { actionIndex, button ->
-                val name = if (actionIndex == actions.lastIndex) "删除" else when {
-                    state.failed || state.paused -> "重试"
+            val retry = icon(R.drawable.ic_download_retry, null)
+            val pause = icon(R.drawable.ic_pause, null)
+            val play = icon(R.drawable.ott_ic_play, null)
+            listOf(retry, pause, play).forEach {
+                primary.addView(it, android.widget.FrameLayout.LayoutParams(-1, -1))
+            }
+            val delete = icon(R.drawable.ic_delete) { callbacks.onDelete(song) }
+            addView(primary, LinearLayout.LayoutParams(dp(36), dp(36)))
+            addView(delete, LinearLayout.LayoutParams(dp(36), dp(36)))
+            bindSingleRow(this, song, index, listOf(primary, delete)) { state ->
+                progress.visibility = if (state.downloading) View.VISIBLE else View.INVISIBLE
+                if (progress.progress != state.progress) progress.progress = state.progress
+                val retrying = state.failed || state.paused
+                retry.visibility = if (retrying) View.VISIBLE else View.INVISIBLE
+                pause.visibility = if (!retrying && state.downloading) View.VISIBLE else View.INVISIBLE
+                play.visibility = if (!retrying && !state.downloading && state.local) View.VISIBLE else View.INVISIBLE
+                val active = retrying || state.downloading || state.local
+                if (!active && primary.hasFocus()) requestFocus()
+                primary.visibility = if (active) View.VISIBLE else View.INVISIBLE
+                val name = when {
+                    retrying -> "重试"
                     state.downloading -> "暂停"
                     else -> "播放"
                 }
-                button.setAccessibleFocus(FOCUS_PREFIX + songKey(song) + "|action|" + actionIndex,
-                    "$name，${song.title.orEmpty()}")
-                button.nextFocusLeftId = actions.getOrNull(actionIndex - 1)?.id ?: row.id
-                button.nextFocusRightId = actions.getOrNull(actionIndex + 1)?.id ?: button.id
-                button.setOnKeyListener { _, key, event ->
-                    when (key) {
-                        android.view.KeyEvent.KEYCODE_DPAD_LEFT, android.view.KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                            if (event.action == android.view.KeyEvent.ACTION_DOWN) {
-                                val target = if (key == android.view.KeyEvent.KEYCODE_DPAD_LEFT)
-                                    actions.getOrNull(actionIndex - 1) ?: row
-                                else actions.getOrNull(actionIndex + 1) ?: button
-                                target.requestFocus()
-                            }
-                            true
-                        }
-                        android.view.KeyEvent.KEYCODE_DPAD_UP, android.view.KeyEvent.KEYCODE_DPAD_DOWN ->
-                            if (event.action == android.view.KeyEvent.ACTION_DOWN) navigateVertical(key) else false
-                        else -> false
-                    }
-                }
+                primary.contentDescription = "$name，${song.title.orEmpty()}"
+                delete.contentDescription = "删除，${song.title.orEmpty()}"
             }
         }
-    }
 
-    private fun createSangRow(song: Song, index: Int): View = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setBackgroundResource(R.drawable.ott_bg_item)
-        addView(text((index + 1).toString(), 16, Color.WHITE, Gravity.CENTER), LinearLayout.LayoutParams(dp(47), dp(48)))
-        addView(songInfo(song, stacked = false), LinearLayout.LayoutParams(0, dp(48), 1f))
-        addView(icon(R.drawable.ic_order_song) { callbacks.onPrimary(song) }, LinearLayout.LayoutParams(dp(36), dp(36)))
-        configureSongCard(this, song, index)
-    }
+    private fun createSangRow(song: Song, index: Int): View =
+        singleRow(R.drawable.ott_bg_item).apply {
+            addView(text((index + 1).toString(), 16, Color.WHITE, Gravity.CENTER),
+                LinearLayout.LayoutParams(dp(47), dp(48)))
+            addView(songInfo(song, stacked = false), LinearLayout.LayoutParams(0, dp(48), 1f))
+            val order = icon(R.drawable.ic_order_song) { callbacks.onPrimary(song) }
+            addView(order, LinearLayout.LayoutParams(dp(36), dp(36)))
+            bindSingleRow(this, song, index, listOf(order)) { }
+        }
 
     private fun songInfo(song: Song, stacked: Boolean): View = LinearLayout(context).apply {
         orientation = if (stacked) LinearLayout.VERTICAL else LinearLayout.HORIZONTAL
@@ -299,18 +455,7 @@ class SongListAdapter(
 
     private fun configureSongCard(card: View, song: Song, songIndex: Int) {
         card.id = cardId(songIndex)
-        val state = stateFor(song)
-        val stateText = when {
-            state.current -> "正在播放"
-            state.queued -> "已点"
-            state.downloading -> "正在下载百分之${state.progress}"
-            state.local -> "已下载"
-            else -> "未下载"
-        }
-        card.setAccessibleFocus(
-            FOCUS_PREFIX + songKey(song),
-            "歌曲，${song.title.orEmpty()}，歌手，${song.singer.orEmpty()}，$stateText，双击点歌，长按查看更多",
-        )
+        card.setAccessibleFocus(FOCUS_PREFIX + songKey(song), songSpokenLabel(song, stateFor(song)))
         (card as? ViewGroup)?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         installPressAnimation(card)
         card.setOnClickListener { callbacks.onPrimary(song) }

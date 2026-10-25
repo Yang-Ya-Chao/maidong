@@ -15,3 +15,4 @@
 .rank-pager button:disabled{opacity:.35;box-shadow:none}
 .rank-pager b{min-width:64px;text-align:center;color:#b9a9c9;font-size:11px}
 .empty.compact{padding:42px 15px}
+.source-badge{display:inline-block;margin-right:6px;padding:1px 5px;border:1px solid rgba(192,156,255,.45);border-radius:5px;color:#d9bdff;font-size:10px;line-height:1.5;vertical-align:1px}.source-badge.local{border-color:rgba(98,230,165,.45);color:#62e6a5}

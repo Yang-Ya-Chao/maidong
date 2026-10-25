@@ -283,36 +283,12 @@
                 android:orientation="vertical"
                 android:layout_marginEnd="20dp">
 
-                <!-- 顶部提示: 当前 / 下一首 -->
-                <LinearLayout
-                    android:id="@+id/pagination_bar"
-                    android:layout_width="match_parent"
-                    android:layout_height="32dp"
-                    android:visibility="gone"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:paddingStart="6dp"
-                    android:paddingEnd="6dp"
-                    android:layout_marginBottom="6dp"
-                    android:background="@drawable/bg_left_header">
-
-                    <TextView
-                        android:id="@+id/text_current_song_tip"
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:singleLine="true"
-                        android:ellipsize="end"
-                        android:text="当前: 未知  下首: 未知"
-                        android:textColor="#FFE0E0FF"
-                        android:textSize="12sp" />
-                </LinearLayout>
 
                 <!-- 播放器 -->
                 <FrameLayout
                     android:id="@+id/player_container"
                     android:layout_width="match_parent"
-                    android:layout_height="210dp"
+                    android:layout_height="270dp"
                     android:background="@drawable/bg_player_window"
                     android:foreground="@drawable/bg_player_focus"
                     android:foregroundGravity="fill"
@@ -505,6 +481,7 @@
                         android:layout_width="0dp"
                         android:layout_height="match_parent"
                         android:layout_weight="1"
+                        android:gravity="center_vertical"
                         android:orientation="vertical" />
                     </LinearLayout>
                 </LinearLayout>
@@ -529,10 +506,32 @@
                 android:layout_weight="0.58"
                 android:orientation="vertical">
 
-                <View
+                <FrameLayout
                     android:id="@+id/sub_controls_spacer"
                     android:layout_width="match_parent"
-                    android:layout_height="48dp" />
+                    android:layout_height="108dp">
+                    <LinearLayout
+                        android:id="@+id/pagination_bar"
+                        android:layout_width="match_parent"
+                        android:layout_height="32dp"
+                        android:layout_gravity="bottom"
+                        android:layout_marginBottom="8dp"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingStart="6dp"
+                        android:paddingEnd="6dp"
+                        android:background="@drawable/bg_left_header">
+                        <TextView
+                            android:id="@+id/text_current_song_tip"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:singleLine="true"
+                            android:ellipsize="none"
+                            android:text="当前：未播放    下一首：无"
+                            android:textColor="#FFE0E0FF"
+                            android:textSize="12sp" />
+                    </LinearLayout>
+                </FrameLayout>
 
                 <!-- 顶部导航栏: 面包屑 + 品牌 + 返回 -->
                 <LinearLayout

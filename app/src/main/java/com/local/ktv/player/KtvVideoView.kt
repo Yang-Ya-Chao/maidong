@@ -143,6 +143,7 @@ private class KaraokeAudioProcessor : BaseAudioProcessor() {
     @Volatile var leftGain = 1f
     @Volatile var rightGain = 1f
     @Volatile var channel = AudioChannels.AUDIO_CHANNEL_STEREO
+    @Volatile var nonSilentSamples = 0L
 
     override fun onConfigure(format: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (format.encoding != C.ENCODING_PCM_16BIT) {
@@ -152,6 +153,12 @@ private class KaraokeAudioProcessor : BaseAudioProcessor() {
     }
 
     override fun queueInput(input: ByteBuffer) {
+        if (com.local.ktv.BuildConfig.DEBUG) {
+            val probe = input.asReadOnlyBuffer().order(ByteOrder.nativeOrder())
+            var nonSilent = 0L
+            while (probe.remaining() >= 2) if (probe.short.toInt() != 0) nonSilent++
+            nonSilentSamples += nonSilent
+        }
         val channels = inputAudioFormat.channelCount
         val output = replaceOutputBuffer(input.remaining())
         input.order(ByteOrder.nativeOrder())
@@ -208,6 +215,8 @@ class KtvPlaybackEngine(context: Context, private val audioOnly: Boolean = false
     private var player: ExoPlayer = createPlayer()
 
     val decoderMode: PlaybackDecoderMode get() = recovery.mode
+    /** 非零解码样本仅用于诊断，不代表扬声器/HDMI 的实际听感。 */
+    internal val decodedNonSilentSamples: Long get() = audio.nonSilentSamples
     val decoderSummary: String get() =
         "视频：${videoDecoder.ifBlank { if (audioOnly) "不启用" else "等待播放" }}\n" +
             "音频：${audioDecoder.ifBlank { "等待播放" }}" +
@@ -376,6 +385,7 @@ class KtvPlaybackEngine(context: Context, private val audioOnly: Boolean = false
         }
         audioDecoder = ""
         videoDecoder = ""
+        audio.nonSilentSamples = 0
         hasRenderedFirstFrame = false
         replacement.trackSelectionParameters = selection
         replacement.playbackParameters = parameters
@@ -444,6 +454,7 @@ class KtvPlaybackEngine(context: Context, private val audioOnly: Boolean = false
         }
         prepared = false
         selectedOriginal = null
+        audio.nonSilentSamples = 0
         audioDecoder = ""
         videoDecoder = ""
         hasRenderedFirstFrame = false

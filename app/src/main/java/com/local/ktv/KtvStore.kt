@@ -85,7 +85,7 @@ class KtvStore {
             downloadToOpenList = root.optBoolean("downloadToOpenList", false)
             usbTreeUri = root.optString("usbTreeUri", "")
             autoDeleteSongs = root.optBoolean("autoDeleteSongs", true)
-            reserveStorageGb = root.optDouble("reserveStorageGb", 1.0).coerceIn(0.5, 64.0)
+            reserveStorageGb = root.optDouble("reserveStorageGb", 1.0).let { if (it.isFinite()) it.coerceIn(0.0, 64.0) else 1.0 }
             floatingButtonEnabled = root.optBoolean("floatingButtonEnabled", true)
             songTitleSubtitleEnabled = root.optBoolean("songTitleSubtitleEnabled", true)
             orderedSongOriginal = root.optBoolean("orderedSongOriginal", false)

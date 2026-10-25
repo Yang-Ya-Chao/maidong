@@ -4,10 +4,9 @@ import androidx.media3.common.PlaybackException
 
 /** The automatic path uses platform decoders first and FFmpeg where needed. */
 enum class PlaybackDecoderMode(val title: String) {
-    AUTO("自动（系统优先，兼容解码兜底）"),
+    AUTO("自动（MP3兼容解码，其他系统优先）"),
     SYSTEM("系统解码"),
     SOFTWARE("兼容解码（FFmpeg 优先）");
-
     companion object {
         fun fromStored(value: String?): PlaybackDecoderMode =
             entries.firstOrNull { it.name == value } ?: AUTO

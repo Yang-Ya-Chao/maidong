@@ -105,8 +105,12 @@ class SongLibrary {
 
     @Synchronized fun allSongs(): List<Song> = (localSongs + cloudSongs + remoteSongs).distinctBy { KtvStore.stableId(it) }
 
+    internal fun localCatalogNumbers(): Set<String> =
+        allSongs().asSequence().filter { it.hasLocalFile() }
+            .mapNotNull { it.sourceSongNumber?.takeIf(String::isNotBlank) }.toSet()
+
     internal fun search(query: String, offset: Int, limit: Int, language: String? = null,
-                        singerOnly: Boolean = false): SongSearch.Page {
+                        singerOnly: Boolean = false, localFirst: Boolean = false): SongSearch.Page {
         val snapshot = synchronized(this) { (localSongs + cloudSongs).distinctBy { KtvStore.stableId(it) } }
         val available = muse.isAvailable()
         // 已按目录编号识别的文件由目录结果返回，避免重复；保留其本地播放路径。
@@ -120,15 +124,27 @@ class SongLibrary {
             .groupBy { it.sourceSongNumber }.mapValues { (_, copies) ->
                 copies.firstOrNull { it.hasLocalFile() } ?: copies.first()
             }
-        return SongSearch.page(imported, count, offset, limit) { from, size ->
-            val songs = if (singerOnly) muse.searchSongsBySingerKeyword(query, from, size)
-                else muse.searchSongs(query, from, size, language)
+        fun withLocalPaths(songs: List<Song>): List<Song> {
             songs.forEach { song -> localByNumber[song.sourceSongNumber]?.let {
                 song.path = it.path
                 song.openListServer = it.openListServer
                 song.openListPath = it.openListPath
             } }
-            songs
+            return songs
+        }
+        if (localFirst) {
+            val numbers = snapshot.asSequence().filter { it.hasLocalFile() }
+                .mapNotNull { it.sourceSongNumber?.takeIf(String::isNotBlank) }.toSet()
+            val localCatalog = if (!available || numbers.isEmpty()) emptyList() else
+                withLocalPaths(muse.phoneSearchSongs(query, singerOnly, 0, numbers.size, numbers, true))
+            return SongSearch.localFirstPage(imported, localCatalog, count - localCatalog.size, offset, limit,
+                { it.hasLocalFile() }) { from, size ->
+                withLocalPaths(muse.phoneSearchSongs(query, singerOnly, from, size, numbers, false))
+            }
+        }
+        return SongSearch.page(imported, count, offset, limit) { from, size ->
+            withLocalPaths(if (singerOnly) muse.searchSongsBySingerKeyword(query, from, size)
+                else muse.searchSongs(query, from, size, language))
         }
     }
 

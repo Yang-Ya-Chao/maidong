@@ -33,7 +33,12 @@ internal object SongStorage {
                   autoDelete: Boolean = true) {
         automaticCleanup = autoDelete
         includeUsb = showUsbSongs
-        selected = Choice(usb, tree, (reserveGb.coerceIn(0.5, 64.0) * 1_073_741_824.0).toLong())
+        val requested = if (reserveGb.isFinite()) reserveGb.coerceIn(0.0, 64.0) else 1.0
+        val preferred = Choice(usb, tree, (requested * 1_073_741_824.0).toLong())
+        selected = preferred
+        val effective = choice()
+        val available = runCatching { capacity(effective).available.coerceAtLeast(0) }.getOrNull()
+        if (available != null) selected = preferred.copy(reserveBytes = minOf(preferred.reserveBytes, available))
     }
     /** 本地默认；U盘设置只表示偏好，拔出后实际保存位置回退本地。 */
     fun choice(): Choice {

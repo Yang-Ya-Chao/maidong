@@ -9,8 +9,25 @@ internal object SongSearch {
     fun matches(song: Song, query: String, language: String? = null, singerOnly: Boolean = false): Boolean {
         if (!language.isNullOrBlank() && language != "全部" && song.language != language) return false
         val fields = if (singerOnly) listOf(song.singer, song.singerNames)
-            else listOf(song.title, song.singer, song.pinyin, song.pinyinFull, song.filename)
-        return fields.any { it.orEmpty().uppercase(Locale.ROOT).contains(query.trim().uppercase(Locale.ROOT)) }
+            else listOf(song.title, song.singer, song.singerNames, song.pinyin, song.pinyinFull, song.filename)
+        val key = query.trim().uppercase(Locale.ROOT)
+        if (fields.any { it.orEmpty().uppercase(Locale.ROOT).contains(key) }) return true
+        // 目录歌曲的拼音字段通常只有歌名，歌手拼音需独立匹配。
+        if (key.isNotEmpty() && key.all { it in 'A'..'Z' || it.isWhitespace() }) {
+            val singer = listOfNotNull(song.singer, song.singerNames).joinToString(" ")
+            return runCatching {
+                IgebaCatalogBootstrapper.initials(singer).contains(key) ||
+                    IgebaCatalogBootstrapper.fullPinyin(singer).contains(key)
+            }.getOrDefault(false)
+        }
+        return false
+    }
+
+    fun localFirstPage(imported: List<Song>, localCatalog: List<Song>, onlineCatalogCount: Int,
+                       offset: Int, limit: Int, isLocal: (Song) -> Boolean,
+                       catalogPage: (Int, Int) -> List<Song>): Page {
+        val (localImports, onlineImports) = imported.partition(isLocal)
+        return page(localImports + localCatalog + onlineImports, onlineCatalogCount, offset, limit, catalogPage)
     }
 
     fun page(local: List<Song>, catalogCount: Int, offset: Int, limit: Int,

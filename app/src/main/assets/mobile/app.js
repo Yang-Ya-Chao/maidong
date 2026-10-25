@@ -58,7 +58,7 @@ function songRow(song, queue = false, current = false, index = 0, ranking = fals
     : !queue ? '<button class="order">点歌</button>' : "";
   return `<div class="song${ranking && index < 3 ? " podium" : ""}" data-id="${escapeHtml(song.id)}">
     <div class="song-index">${number}</div>
-    <div class="info">${current ? '<span class="playing">正在播放</span>' : ""}<b>${escapeHtml(song.title)}</b><p>${escapeHtml(song.singer)}${song.language ? " · " + escapeHtml(song.language) : ""}</p></div>
+    <div class="info">${current ? '<span class="playing">正在播放</span>' : ""}<b>${escapeHtml(song.title)}</b><p><span class="source-badge${song.local === true ? " local" : ""}">${song.local === true ? "本地" : "在线"}</span>${escapeHtml(song.singer)}${song.language ? " · " + escapeHtml(song.language) : ""}</p></div>
     ${actions}
   </div>`;
 }
@@ -134,7 +134,7 @@ async function search(reset = true) {
     const rows = (data.songs || []).map((song, index) => songRow(song, false, false, (uiState.page - 1) * 20 + index)).join("");
     if (rows) $("#results").insertAdjacentHTML("beforeend", rows);
     else if (reset) $("#results").innerHTML = '<div class="empty">没有找到相关歌曲<br><small>请更换关键词后重试</small></div>';
-    $("#resultSummary").textContent = `“${uiState.query}”${data.hasMore ? "，还有更多" : ""}`;
+    $("#resultSummary").textContent = `“${uiState.query}” · 本地优先${data.hasMore ? "，还有更多" : ""}`;
     $("#more").classList.toggle("hidden", !data.hasMore);
     uiState.page += 1;
   } catch (error) { toast(error.message); }
@@ -155,7 +155,7 @@ async function loadHot(page) {
       songRow(song, false, false, (uiState.hotPage - 1) * uiState.hotPageSize + index, true)
     ).join("") || '<div class="empty compact">暂无热歌排行</div>';
     $("#hotPage").textContent = `第 ${uiState.hotPage} 页`;
-    $("#hotSummary").textContent = songs.length ? `第 ${(uiState.hotPage - 1) * uiState.hotPageSize + 1}-${(uiState.hotPage - 1) * uiState.hotPageSize + songs.length} 名` : "暂无数据";
+    $("#hotSummary").textContent = songs.length ? `第 ${(uiState.hotPage - 1) * uiState.hotPageSize + 1}-${(uiState.hotPage - 1) * uiState.hotPageSize + songs.length} 首 · 本地优先` : "暂无数据";
     $("#hotPrev").disabled = !data.hasPrevious;
     $("#hotNext").disabled = !data.hasMore;
     if (page > 1) $("#hot").scrollIntoView({ behavior: "smooth", block: "start" });

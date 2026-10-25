@@ -75,7 +75,14 @@ internal class KtvRenderersFactory(
         eventListener: AudioRendererEventListener,
         out: ArrayList<Renderer>,
     ) {
-        super.buildAudioRenderers(context, extensionRendererMode, mediaCodecSelector,
+        // 只让 MP3 绕过系统解码；Vorbis 等格式保持系统优先，避免库兼容性回退。
+        val preferFfmpegMp3 = recovery.mode == PlaybackDecoderMode.AUTO &&
+            !recovery.systemAudioOnly && extensionRendererMode != EXTENSION_RENDERER_MODE_OFF
+        val audioSelector = MediaCodecSelector { mime, secure, tunneling ->
+            if (preferFfmpegMp3 && mime == MimeTypes.AUDIO_MPEG) emptyList()
+            else mediaCodecSelector.getDecoderInfos(mime, secure, tunneling)
+        }
+        super.buildAudioRenderers(context, extensionRendererMode, audioSelector,
             enableDecoderFallback, audioSink, eventHandler, eventListener, out)
         if (recovery.mode == PlaybackDecoderMode.AUTO && recovery.softwareAudio) {
             out.removeAll { it.trackType == C.TRACK_TYPE_AUDIO && it !is FfmpegAudioRenderer }

@@ -55,8 +55,22 @@ class IgebaCatalog {
         songsBySingerName(keyword.orEmpty(), offset, limit)
     fun searchSongsBySingerKeywordCount(keyword: String?): Int = countSongsBySingerName(keyword.orEmpty())
 
-    fun hotSongs(offset: Int, limit: Int): MutableList<Song> = songQuery("1=1", emptyList(), offset, limit,
-        "COALESCE((SELECT ps.sort_no FROM source_playlist_songs ps JOIN source_playlists p ON p.number=ps.playlist_number AND p.package_type=ps.package_type WHERE ps.song_number=s.number AND p.package_type=4 AND p.name LIKE '热歌榜%' LIMIT 1),1000000),s.sort_no")
+    fun hotSongs(offset: Int, limit: Int, localNumbers: Set<String> = emptySet()): MutableList<Song> {
+        val priority = if (localNumbers.isEmpty()) "" else
+            "CASE WHEN ${LocalSongOrder.numberCondition(localNumbers)} THEN 0 ELSE 1 END,"
+        return songQuery("1=1", emptyList(), offset, limit,
+            priority + "COALESCE((SELECT ps.sort_no FROM source_playlist_songs ps JOIN source_playlists p ON p.number=ps.playlist_number AND p.package_type=ps.package_type WHERE ps.song_number=s.number AND p.package_type=4 AND p.name LIKE '热歌榜%' LIMIT 1),1000000),s.sort_no")
+    }
+    internal fun phoneSearchSongs(keyword: String, singerOnly: Boolean, offset: Int, limit: Int,
+                                  localNumbers: Set<String>, localOnly: Boolean): MutableList<Song> {
+        val (where, args) = if (singerOnly) singerSongCondition(keyword) else {
+            val values = mutableListOf<String>()
+            textCondition(keyword, values) to values
+        }
+        return songQuery("($where) AND ${LocalSongOrder.numberCondition(localNumbers, localOnly)}",
+            args, offset, limit)
+    }
+
     fun hdSongs(offset: Int, limit: Int): MutableList<Song> = songQuery("1=1", emptyList(), offset, limit)
     fun quickSongs(limit: Int): MutableList<Song> = hotSongs(0, limit)
     fun songsByLanguage(language: String?, offset: Int, limit: Int): MutableList<Song> =

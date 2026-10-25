@@ -447,6 +447,9 @@ class MainActivity : AppCompatActivity() {
         runCatching {
             stateDatabase.restoreDownloads().forEach { snapshot ->
                 if (snapshot.status == "completed") return@forEach
+                // Interrupted and failed downloads require an explicit user retry.
+                orderQueue?.removeAll { stableId(it) == stableId(snapshot.song) }
+                if (currentSong?.let(::stableId) == stableId(snapshot.song)) currentSong = null
                 snapshot.localPath?.let { snapshot.song.path = it }
                 downloads += DownloadTask(snapshot.song).apply {
                     progress = snapshot.progress
@@ -628,6 +631,8 @@ class MainActivity : AppCompatActivity() {
             storageReceiverRegistered = false
         }
         main.removeCallbacks(storageRefreshRunnable)
+        main.removeCallbacks(downloadStatusTicker)
+        main.removeCallbacks(statusScrollTicker)
         openListBrowser.close()
         super.onDestroy()
         io.shutdownNow()
@@ -3473,7 +3478,7 @@ class MainActivity : AppCompatActivity() {
         val pageSize = (query["pageSize"]?.toIntOrNull() ?: 20).coerceIn(1, 50)
         val offset = (page - 1) * pageSize
         val songs = if (keyword.isBlank()) emptyList() else
-            library.search(keyword, offset, pageSize + 1, singerOnly = type == "singer").songs
+            library.search(keyword, offset, pageSize + 1, singerOnly = type == "singer", localFirst = true).songs
         val hasMore = songs.size > pageSize
         val pageSongs = songs.take(pageSize)
         val array = JSONArray()
@@ -3491,10 +3496,11 @@ class MainActivity : AppCompatActivity() {
         val pageSize = (query["pageSize"]?.toIntOrNull() ?: 10).coerceIn(1, 30)
         val offset = (page - 1) * pageSize
         val songs = if (library.muse.isAvailable()) {
-            library.muse.hotSongs(offset, pageSize + 1)
+            library.muse.hotSongs(offset, pageSize + 1, library.localCatalogNumbers())
         } else {
             library.allSongs().asSequence().filter(::isVisibleSong)
-                .sortedByDescending { it.playCount }.drop(offset).take(pageSize + 1).toMutableList()
+                .sortedByDescending { it.playCount }.sortedByDescending { it.hasLocalFile() }
+                .drop(offset).take(pageSize + 1).toMutableList()
         }
         val hasMore = songs.size > pageSize
         val array = JSONArray()
@@ -3606,6 +3612,7 @@ class MainActivity : AppCompatActivity() {
         item.put("category", song.category)
         item.put("language", song.language)
         item.put("remote", song.remote)
+        item.put("local", song.hasLocalFile() || SongOkDownloadManager.isDownloaded(song))
         item.put("favorite", store.isFavorite(song))
         item.put("playCount", song.playCount)
         item.put("hasOriginal", hasUrl(song.originalUrl) || hasUrl(song.originalPath))
@@ -4701,6 +4708,8 @@ class MainActivity : AppCompatActivity() {
      * 使用 SongOkDownloadManager 下载歌曲到本地。
      */
     private fun downloadSong(song: Song, extraCallback: DownloadCallback? = null, storageChecked: Boolean = false) {
+        main.removeCallbacks(downloadStatusTicker)
+        main.post(downloadStatusTicker)
         val openList = openListBrowser.config()
         if (store.downloadToOpenList && openList.server.isBlank()) {
             toast("请先设置 OpenList 连接和歌曲目录")
@@ -4721,6 +4730,9 @@ class MainActivity : AppCompatActivity() {
         if (::stateDatabase.isInitialized) runCatching {
             stateIo.execute { stateDatabase.updateDownload(song, "queued", 0) }
         }
+        downloads.removeAll { stableId(it.song) == stableId(song) }
+        downloads.add(DownloadTask(song).apply { state = "等待" })
+        refreshSongAdapter()
         download(song, object : DownloadCallback {
             override fun onDownloadStart(song: Song) {
                 if (extraCallback != null) extraCallback.onDownloadStart(song)
@@ -4777,7 +4789,8 @@ class MainActivity : AppCompatActivity() {
                         main.post {
                             synchronized(browsePageCache) { browsePageCache.clear() }
                             synchronized(browseCountCache) { browseCountCache.clear() }
-                            if (browseMode in setOf("search", "quick", "local")) reloadCurrentBrowsePage()
+                            if (browseMode == "local") reloadCurrentBrowsePage()
+                            else refreshSongAdapter()
                         }
                     }
                     toast(if (song.isOpenList() && localPath.isBlank()) "歌曲已保存到网盘" else "歌曲保存完成")
@@ -4810,7 +4823,15 @@ class MainActivity : AppCompatActivity() {
                     val wasPendingQueue = pendingQueueSongIds.remove(stableId(song))
                     pendingQueueCacheNames.remove(stableId(song))
                     persistRuntimeState()
-                    if (currentSong != null && currentSong!!.equals(song)) playbackPreparing = false
+                    val failedCurrent = playbackPreparing && currentSong?.let(::stableId) == stableId(song)
+                    if (failedCurrent || wasPendingQueue) orderQueue?.removeAll { stableId(it) == stableId(song) }
+                    if (failedCurrent) {
+                        playbackPreparing = false
+                        currentSong = null
+                        orderQueue?.firstOrNull()?.let { play(it) }
+                    }
+                    persistRuntimeState()
+                    syncPlayerInfo()
                     downloads.firstOrNull { stableId(it.song) == stableId(song) }?.let { task ->
                         task.state = "失败:" + error
                         downloads.remove(task)
@@ -4820,7 +4841,8 @@ class MainActivity : AppCompatActivity() {
                     if (currentTabIndex == 6) loadDownloadedList()
                     if (currentSong?.equals(song) == true) hideDownloadProgress()
                     Log.w(TAG, "downloadFailed song=${stableId(song)} error=$error")
-                    if (wasPendingQueue) toast("下载失败：$error；未加入已点：${song.title}")
+                    syncPlayerInfo()
+                    if (wasPendingQueue) toast("下载失败：$error；已跳过，可在下载列表重试或删除：${song.title}")
                 })
             }
         }, source = openList, cloud = openList.takeIf { store.downloadToOpenList },
@@ -6518,7 +6540,7 @@ class MainActivity : AppCompatActivity() {
         if (keyboardArea != null) keyboardArea!!.setVisibility(View.VISIBLE)
         rankCategoryGrid?.visibility = View.GONE
         if (tabContainer != null) tabContainer!!.setVisibility(View.VISIBLE)
-        if (paginationBar != null) paginationBar!!.setVisibility(View.GONE)
+        paginationBar?.visibility = View.VISIBLE
         browsePagination?.visibility = View.VISIBLE
         if (songList != null) {
             songList!!.setBackgroundResource(R.drawable.bg_song_list)
@@ -6710,27 +6732,53 @@ class MainActivity : AppCompatActivity() {
     private fun syncPlayerInfo() {
         val title = if (currentSong == null) "未播放" else currentSong!!.title
         val singer = if (currentSong == null) "" else currentSong!!.singer
-        if (homePlayerTitle != null) homePlayerTitle!!.text = currentAndNextText()
-        if (homePlayerSinger != null) homePlayerSinger!!.setText(singer)
-        if (playerSongTitle != null) playerSongTitle!!.setText(title)
-        if (playerSongSinger != null) playerSongSinger!!.setText(singer)
+        updateScrollingStatus(homePlayerTitle, currentAndNextText())
+        if (homePlayerSinger?.text?.toString() != singer) homePlayerSinger?.text = singer
+        if (playerSongTitle?.text?.toString() != title) playerSongTitle?.text = title
+        if (playerSongSinger?.text?.toString() != singer) playerSongSinger?.text = singer
         // 顶部状态栏 - 当前/下首
-        if (textCurrentSongTip != null) {
-            val cur =
-                "当前: " + title + (if (singer == null || singer.isEmpty()) "" else " - " + singer)
-            val nxt = if (orderQueue!!.size >= 2)
-                orderQueue.get(1).title + (if (orderQueue.get(1).singer == null || orderQueue.get(
-                        1
-                    ).singer!!.isEmpty()
-                ) "" else " - " + orderQueue.get(1).singer)
-            else
-                "无"
-            textCurrentSongTip!!.setText(cur + "  下首: " + nxt)
-        }
-        fullScreenSongInfo?.text = currentAndNextText()
+        updateScrollingStatus(textCurrentSongTip, currentAndNextText())
+        updateScrollingStatus(fullScreenSongInfo, currentAndNextText())
+        main.removeCallbacks(statusScrollTicker)
+        main.postDelayed(statusScrollTicker, 40L)
         updateOrderBadge()
         if (browseMode == "ordered" || browseMode == "sang" || browseMode == "downloads") {
             renderSongList()
+        }
+    }
+
+    private fun updateScrollingStatus(view: TextView?, info: String) {
+        view ?: return
+        val offset = view.scrollX
+        if (view.maxLines != 1) view.setSingleLine(true)
+        if (view.ellipsize != null) view.ellipsize = null
+        if (view.text.toString() != info) view.text = info
+        view.scrollTo(offset, 0)
+    }
+
+    private val statusScrollTicker = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            var overflow = false
+            listOfNotNull(textCurrentSongTip, homePlayerTitle, fullScreenSongInfo).forEach { view ->
+                if (!view.isShown || view.width <= 0) return@forEach
+                val limit = (view.paint.measureText(view.text.toString()) - view.width
+                    + view.paddingLeft + view.paddingRight).toInt()
+                if (limit > 0) {
+                    overflow = true
+                    view.scrollTo(if (view.scrollX > limit + dp(32)) 0 else view.scrollX + max(1, dp(1)), 0)
+                } else view.scrollTo(0, 0)
+            }
+            if (overflow) main.postDelayed(this, 40L)
+        }
+    }
+
+    private val downloadStatusTicker = object : Runnable {
+        override fun run() {
+            if (isFinishing || isDestroyed) return
+            syncPlayerInfo()
+            refreshSongAdapter()
+            if (downloads.any { it.state in setOf("等待", "下载中") }) main.postDelayed(this, 1000L)
         }
     }
 
@@ -6745,7 +6793,17 @@ class MainActivity : AppCompatActivity() {
             else -> orderQueue?.firstOrNull { currentSong?.equals(it) != true }
         }?.let { song -> song.title.orEmpty() + song.singer?.takeIf { it.isNotBlank() }?.let { " - $it" }.orEmpty() }
             ?: "无"
-        return "当前：$current    下一首：$next"
+        val downloading = downloads.filter { it.state in setOf("等待", "下载中") }
+            .joinToString("    ") { task ->
+                val transfer = SongOkDownloadManager.transferStatus(task.song)
+                val rate = transfer?.second ?: 0L
+                val speed = if (rate >= 1_048_576L) String.format(Locale.ROOT, "%.1f MB/s", rate / 1_048_576.0)
+                    else String.format(Locale.ROOT, "%.0f KB/s", rate / 1024.0)
+                "正在下载${task.song.title}（${transfer?.first ?: task.progress}%） $speed"
+            }
+        val playback = if (currentSong == null && next == "无" && downloading.isNotEmpty()) ""
+            else "当前：$current    下一首：$next"
+        return listOf(playback, downloading).filter { it.isNotEmpty() }.joinToString("    ")
     }
 
     /** 顶栏搜索按钮 - 跳到搜索页  */
@@ -7252,7 +7310,7 @@ class MainActivity : AppCompatActivity() {
             rowLayout.setGravity(Gravity.CENTER)
             rowLayout.setWeightSum(row!!.size.toFloat())
             val rowLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
+                LinearLayout.LayoutParams.MATCH_PARENT, dp(56)
             )
             rowLp.bottomMargin = dp(2)
             grid.addView(rowLayout, rowLp)
@@ -7533,6 +7591,9 @@ class MainActivity : AppCompatActivity() {
                         onSingerClick = { singer -> loadSingerSongs(singer.getOrNull(0), singer.getOrNull(1)) },
                         onSongClick = { song -> addToQueue(song) },
                         onSongMore = { song -> showSongActions(song) },
+                        stateFor = { song -> songRowState(song) },
+                        previousPageFocusId = btnPrevPage?.id ?: View.NO_ID,
+                        nextPageFocusId = btnNextPage?.id ?: View.NO_ID,
                     )
                 }
                 updatePageInfo()
@@ -7775,9 +7836,7 @@ class MainActivity : AppCompatActivity() {
             }
             val filtered = localSongs.values.filter {
                 val languageMatches = language.isEmpty() || language == "全部" || it.language == language
-                val text = listOf(it.title, it.singer, it.pinyin, it.pinyinFull)
-                    .joinToString(" ").uppercase(Locale.ROOT)
-                languageMatches && (query.isEmpty() || query in text)
+                languageMatches && SongSearch.matches(it, query)
             }
             val from = (requestedPage * pageSize).coerceAtMost(filtered.size)
             val page = filtered.drop(from).take(pageSize)
@@ -8432,20 +8491,23 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showReserveStorageDialog() {
-        val totalGb = runCatching { SongStorage.capacity().total.toDouble() / 1024.0 / 1024.0 / 1024.0 }.getOrElse { toast(it.message ?: "保存位置不可用"); return }
-        val values = listOf(0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0)
-            .filter { it <= max(0.5, totalGb * 0.95) }
-            .ifEmpty { listOf(0.5) }
+        val availableGb = runCatching { SongStorage.capacity().available.coerceAtLeast(0).toDouble() / 1_073_741_824.0 }
+            .getOrElse { toast(it.message ?: "保存位置不可用"); return }
+        val values = (listOf(0.0, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0)
+            .filter { it <= availableGb } + minOf(64.0, availableGb)).distinct().sorted()
+        reserveStorageGb = reserveStorageGb.coerceIn(0.0, minOf(64.0, availableGb))
+        saveState()
         val labels = values.map { value ->
-            "${String.format(Locale.ROOT, if (value < 1) "%.1f" else "%.0f", value)} GB"
+            "${String.format(Locale.ROOT, "%.2f", value)} GB"
         }.toTypedArray()
         var selected = values.indices.minByOrNull { kotlin.math.abs(values[it] - reserveStorageGb) } ?: 0
-        AlertDialog.Builder(this).setTitle("预留存储空间")
+        AlertDialog.Builder(this).setTitle("预留存储空间（可用 ${String.format(Locale.ROOT, "%.2f", availableGb)} GB）")
             .setSingleChoiceItems(labels, selected) { _, which -> selected = which }
             .setNegativeButton("取消", null).setPositiveButton("保存") { _, _ ->
-                reserveStorageGb = values[selected]
+                val currentAvailable = runCatching { SongStorage.capacity().available.coerceAtLeast(0).toDouble() / 1_073_741_824.0 }
+                    .getOrElse { toast(it.message ?: "保存位置不可用"); return@setPositiveButton }
+                reserveStorageGb = values[selected].coerceAtMost(currentAvailable)
                 saveState()
-                if (autoDeleteSongs) enforceStorageReserve(showResult = true)
                 showSettingsSection(1, false)
             }.create().showForTv()
     }
@@ -8996,16 +9058,62 @@ class MainActivity : AppCompatActivity() {
     /**
      * 轻量刷新当前歌曲列表 Adapter (不重建), 用于下载状态变更后即时更新 UI。
      */
-    private fun refreshSongAdapter() {
-        modernSongAdapter?.let { adapter ->
-            if (songList?.adapter === adapter) adapter.notifyDataSetChanged()
+    private data class SongFocusAnchor(val marker: String, val scope: String, val inputSerial: Int)
+    private var songFocusAnchor: SongFocusAnchor? = null
+
+    private fun songFocusScope(): String =
+        listOf(currentPage, browseMode, browseParam, activeSearchQuery, browsePage, currentTabIndex).joinToString("\u0001")
+
+    private fun rememberSongFocus(): SongFocusAnchor? {
+        val list = songList ?: return null
+        if (window.decorView.isInTouchMode) {
+            songFocusAnchor = null
+            return null
         }
+        val scope = songFocusScope()
+        songFocusAnchor?.takeIf { it.scope == scope && it.inputSerial == focusRestoreSerial }?.let { return it }
+        val focused = window.decorView.findFocus()?.takeIf { isDescendantOf(it, list) }
+        val marker = focused?.focusMarker()?.takeIf { it.startsWith(SongListAdapter.FOCUS_PREFIX) }
+        return marker?.let { SongFocusAnchor(it, scope, focusRestoreSerial) }.also { songFocusAnchor = it }
+    }
+
+    private fun retainSongFocus(anchor: SongFocusAnchor?) {
+        anchor ?: return
+        val list = songList ?: return
+        fun restore() {
+            if (focusRestoreSerial != anchor.inputSerial || songFocusScope() != anchor.scope ||
+                !window.decorView.hasWindowFocus() || window.decorView.isInTouchMode) return
+            val exact = findViewByFocusMarker(list, anchor.marker)
+            val target = exact?.takeIf { it.isShown && it.isFocusable } ?:
+                findViewByFocusMarker(list, anchor.marker.substringBefore("|action|"))
+                    ?.takeIf { it.isShown && it.isFocusable }
+            if (target != null && !target.hasFocus()) target.requestFocus()
+        }
+        // ListView can move focus during its next layout pass. Recheck after that pass too.
+        list.post { restore() }
+        list.postDelayed({ restore() }, 60L)
+    }
+
+    private fun refreshSongAdapter() {
+        val list = songList ?: return
+        val anchor = rememberSongFocus()
+        when (val adapter = list.adapter) {
+            is SongListAdapter -> if (!adapter.refreshVisibleStates(list)) renderSongList()
+            is QuickSearchAdapter -> adapter.refreshVisibleStates(list)
+        }
+        retainSongFocus(anchor)
     }
 
     /**
      * 渲染歌曲列表
      */
     private fun renderSongList() {
+        val anchor = rememberSongFocus()
+        renderSongListContents()
+        retainSongFocus(anchor)
+    }
+
+    private fun renderSongListContents() {
         val list = songList ?: return
         val focusedView = window.decorView.findFocus()?.takeIf { isDescendantOf(it, list) }
         val focusedMarker = focusedView?.focusMarker()
@@ -9026,7 +9134,7 @@ class MainActivity : AppCompatActivity() {
             list.adapter = tvAdapter().apply { add("暂无歌曲") }
             return
         }
-        list.dividerHeight = 0
+        if (list.dividerHeight != 0) list.dividerHeight = 0
         val mode = when (browseMode) {
             "rank", "ordered", "downloads", "sang" -> browseMode
             else -> "catalog"
@@ -9055,15 +9163,16 @@ class MainActivity : AppCompatActivity() {
             modernSongAdapter = it
             list.adapter = it
         }
+        if (existing != null && listAdapter.refreshVisibleStates(list)) return
         if (existing != null) listAdapter.notifyDataSetChanged()
 
         val targetPosition = (focusedMarker?.let(listAdapter::adapterPositionFor)
             ?: oldSelectedPosition.takeIf { it >= 0 })?.coerceIn(0, listAdapter.count - 1)
         if (targetPosition != null && focusedMarker != null) {
-            list.setSelectionFromTop(targetPosition, oldFocusedTop ?: 0)
+            val restoreSerial = focusRestoreSerial
+            list.setSelectionFromTop(targetPosition, (oldFocusedTop ?: list.paddingTop) - list.paddingTop)
             list.post {
-                if (list.adapter !== listAdapter) return@post
-                list.setSelection(targetPosition)
+                if (list.adapter !== listAdapter || restoreSerial != focusRestoreSerial) return@post
                 val row = list.getChildAt(targetPosition - list.firstVisiblePosition)
                 val target = row?.let { findViewByFocusMarker(it, focusedMarker) } ?: row
                 if (target != null) {
@@ -9089,15 +9198,14 @@ class MainActivity : AppCompatActivity() {
         val taskState = task?.state.orEmpty()
         return SongRowState(
             current = currentSong?.equals(song) == true,
-            queued = orderQueue!!.contains(song),
+            queued = orderQueue!!.contains(song) || pendingQueueSongIds.contains(stableId(song)),
             local = song.hasLocalFile(),
-            downloading = isDownloading(song),
+            downloading = !taskState.startsWith("失败") && !taskState.contains("暂停") && isDownloading(song),
             failed = taskState.startsWith("失败"),
             paused = taskState.contains("暂停") || taskState.contains("中断"),
-            progress = task?.progress ?: SongOkDownloadManager.getDownloadProgress(song),
+            progress = SongOkDownloadManager.transferStatus(song)?.first ?: task?.progress ?: 0,
         )
     }
-
     private fun handleSongPrimary(song: Song) {
         var rendered = false
         when (browseMode) {
@@ -9312,8 +9420,10 @@ class MainActivity : AppCompatActivity() {
      */
     private fun updateOrderBadge() {
         val n = if (orderQueue == null) 0 else orderQueue.size
-        if (textTopOrderBadge != null) textTopOrderBadge!!.setText(n.toString())
-        if (textOrderBadge != null) textOrderBadge!!.setText(n.toString())
+        val count = n.toString()
+        listOfNotNull(textTopOrderBadge, textOrderBadge).forEach { badge ->
+            if (badge.text.toString() != count) badge.text = count
+        }
     }
 
     /**
@@ -9334,6 +9444,8 @@ class MainActivity : AppCompatActivity() {
                 else "歌曲正在下载，尚未进入已点：${song.title}",
             )
             if (!isDownloading(song)) downloadSong(song)
+            refreshSongAdapter()
+            syncPlayerInfo()
             return
         }
         addReadySongToQueue(song)
@@ -9355,6 +9467,8 @@ class MainActivity : AppCompatActivity() {
         if (currentPage == "已点" || currentPage == "首页") renderQueue()
         toast("已点: " + song.title + (if (song.singer != null) " - " + song.singer else ""))
         if (wasQueueEmpty) play(song)
+        refreshSongAdapter()
+        syncPlayerInfo()
     }
 
     private fun scheduleAutoFullscreen() {
@@ -9411,8 +9525,9 @@ class MainActivity : AppCompatActivity() {
         store.autoFullscreenSeconds = autoFullscreenSeconds
         store.showUsbSongs = showUsbSongs
         store.autoDeleteSongs = autoDeleteSongs
-        store.reserveStorageGb = reserveStorageGb
         SongStorage.configure(store.downloadToUsb, store.usbTreeUri, reserveStorageGb, showUsbSongs, autoDeleteSongs)
+        reserveStorageGb = SongStorage.choice().reserveBytes.toDouble() / 1_073_741_824.0
+        store.reserveStorageGb = reserveStorageGb
         store.floatingButtonEnabled = floatingButtonEnabled
         store.songTitleSubtitleEnabled = songTitleSubtitleEnabled
         store.orderedSongOriginal = orderedSongOriginal
@@ -9481,6 +9596,8 @@ class MainActivity : AppCompatActivity() {
         autoDeleteSongs = store.autoDeleteSongs
         reserveStorageGb = store.reserveStorageGb
         SongStorage.configure(store.downloadToUsb, store.usbTreeUri, reserveStorageGb, showUsbSongs, autoDeleteSongs)
+        reserveStorageGb = SongStorage.choice().reserveBytes.toDouble() / 1_073_741_824.0
+        store.reserveStorageGb = reserveStorageGb
         floatingButtonEnabled = store.floatingButtonEnabled
         songTitleSubtitleEnabled = store.songTitleSubtitleEnabled
         orderedSongOriginal = store.orderedSongOriginal
@@ -9537,6 +9654,15 @@ class MainActivity : AppCompatActivity() {
         if (event.getAction() != KeyEvent.ACTION_DOWN) return super.dispatchKeyEvent(event)
         focusRestoreSerial++
         val code = event.getKeyCode()
+        if (code in KeyEvent.KEYCODE_DPAD_UP..KeyEvent.KEYCODE_DPAD_CENTER) {
+            main.post {
+                val target = window.decorView.findFocus()
+                android.util.Log.d("KtvFocus", "key=$code marker=${target?.focusMarker()} " +
+                    "view=${target?.javaClass?.simpleName} id=${target?.id} " +
+                    "attached=${target?.isAttachedToWindow} focused=${target?.isFocused} " +
+                    "touch=${window.decorView.isInTouchMode}")
+            }
+        }
         if (isFullScreen) {
             val center = code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER ||
                 code == KeyEvent.KEYCODE_NUMPAD_ENTER

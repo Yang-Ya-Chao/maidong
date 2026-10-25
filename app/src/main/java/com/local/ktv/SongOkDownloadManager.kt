@@ -29,8 +29,20 @@ object SongOkDownloadManager {
         val cancelled = AtomicBoolean(false)
         val callbacks = CopyOnWriteArrayList<DownloadCallback>()
         @Volatile var connection: HttpURLConnection? = null
+        @Volatile var transferred = 0L
+        @Volatile var startedAt = 0L
+        @Volatile var total = 0L
+        @Volatile var received = 0L
         @Volatile var progress = 0
     }
+    fun transferStatus(song: Song): Pair<Int, Long>? {
+        val job = jobs[key(song)]?.takeUnless { it.cancelled.get() } ?: return null
+        val elapsed = (System.nanoTime() - job.startedAt).coerceAtLeast(1L)
+        val speed = if (job.startedAt == 0L) 0L else (job.transferred * 1_000_000_000.0 / elapsed).toLong()
+        val percent = if (job.total > 0) (job.received * 100 / job.total).toInt().coerceIn(0, 99) else job.progress
+        return percent to speed
+    }
+
     private data class Block(val bytes: ByteArray, val end: Long, val total: Long)
     private val jobs = ConcurrentHashMap<String, Job>()
     private val locks = ConcurrentHashMap<String, Any>()
@@ -168,6 +180,7 @@ object SongOkDownloadManager {
                         } else if (song.isOpenList()) fetchOpenList(song, job) else fetch(song, job)
                     }
                 } catch(error: Exception) {
+                    jobs.remove(id, job)
                     if(!job.cancelled.get()) job.callbacks.forEach {
                         it.onDownloadFailed(song, error.message?.take(180) ?: "下载失败")
                     }
@@ -202,6 +215,10 @@ object SongOkDownloadManager {
                     if(job.cancelled.get()) throw IOException("下载已暂停")
                     val n=input.read(data,at,expected-at)
                     if(n < 0) throw IOException("媒体分段不完整")
+                    if (job.startedAt == 0L) job.startedAt = System.nanoTime()
+                    job.transferred += n
+                    job.total = total
+                    job.received = start + at + n
                     at+=n
                 }
                 if(input.read() != -1) throw IOException("分段长度超出声明范围")
@@ -297,6 +314,10 @@ object SongOkDownloadManager {
                 val count = input.read(buffer, 0, minOf(buffer.size.toLong(), size - received).toInt())
                 check(count > 0) { "歌曲下载不完整" }
                 output.write(buffer.copyOf(count))
+                if (job.startedAt == 0L) job.startedAt = System.nanoTime()
+                job.transferred += count
+                job.received = received + count
+                job.total = size
                 received += count
                 progress(song, job, ((received * (if (job.cloud == null) 99 else 49)) / size).toInt())
             }

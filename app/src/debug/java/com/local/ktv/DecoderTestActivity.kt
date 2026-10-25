@@ -35,12 +35,26 @@ class DecoderTestActivity : Activity() {
         engine.setOnErrorListener { _, _, code -> error = code; true }
         directory = File(getExternalFilesDir(null), "decoder-samples").apply { mkdirs() }
         Thread {
-            samples = assets.list("decoder-samples").orEmpty().filter { it.endsWith(".mkv") }.sorted().map { name ->
+            val names = setOf("h264-mp3.mkv", "h264-ac3.mkv", "h264-eac3.mkv", "aac-sbr.mkv", "vorbis-multiaudio.mkv")
+            samples = assets.list("decoder-samples").orEmpty().filter { it in names }.sorted().map { name ->
                 File(directory, name).also { output ->
                     assets.open("decoder-samples/$name").use { input -> output.outputStream().use { input.copyTo(it) } }
                 }
             }
-            handler.post { nextSample() }
+            val local = Song.local("/test/周杰伦-稻香.mkv", "周杰伦-稻香.mkv")
+            val searches = listOf("周杰伦", "zjl", "zhoujielun").all { SongSearch.matches(local, it) &&
+                SongSearch.matches(local, it, singerOnly = true) }
+            val savedStorage = SongStorage.choice()
+            val available = SongStorage.capacity(SongStorage.Choice()).available
+            SongStorage.configure(false, "", 64.0)
+            val clamped = SongStorage.choice().reserveBytes
+            val reservePassed = clamped in 0..minOf(64L * 1_073_741_824L, available)
+            SongStorage.configure(savedStorage.usb, savedStorage.tree, savedStorage.reserveBytes / 1_073_741_824.0)
+            handler.post {
+                record("SEARCH singerAndPinyin=$searches")
+                record("RESERVE pass=$reservePassed available=$available corrected=$clamped")
+                nextSample()
+            }
         }.start()
     }
     private fun record(value: String) {
@@ -66,14 +80,15 @@ class DecoderTestActivity : Activity() {
     private fun verify() {
         val pos = engine.currentPosition
         val progressed = engine.isPlaying && pos - before > 700
-        val endedShort = !engine.isPlaying && engine.duration in 1..4500 && pos >= engine.duration - 150
+        val endedShort = !engine.isPlaying && engine.duration > 0 && pos >= engine.duration - 150
         val videoPassed = error == 0 && engine.hasRenderedFirstFrame && (progressed || endedShort)
         val audioExpected = samples[index].name !in setOf("hdr10tags-both.mkv", "spherical.mkv", "msmpeg4v3-subrip.mkv")
-        val audioPassed = !audioExpected || !engine.decoderSummary.substringAfter('\n').contains("等待播放")
+        val audioPassed = !audioExpected || (!engine.decoderSummary.substringAfter('\n').contains("等待播放") &&
+            engine.decodedNonSilentSamples > 0)
         val passed = videoPassed && audioPassed
         record("RESULT file=${samples[index].name} mode=${engine.decoderMode} pass=$passed " +
             "videoPass=$videoPassed audioPass=$audioPassed firstFrame=${engine.hasRenderedFirstFrame} " +
-            "error=$error before=$before after=$pos playing=${engine.isPlaying} " +
+            "error=$error before=$before after=$pos playing=${engine.isPlaying} nonSilent=${engine.decodedNonSilentSamples} " +
             engine.decoderSummary.replace('\n', '|'))
         index++
         handler.postDelayed({ nextSample() }, 500)

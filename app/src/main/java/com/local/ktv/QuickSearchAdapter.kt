@@ -22,29 +22,37 @@ class QuickSearchAdapter(
     private val onSingerClick: (Array<String?>) -> Unit,
     private val onSongClick: (Song) -> Unit,
     private val onSongMore: (Song) -> Unit,
+    private val stateFor: (Song) -> SongRowState,
+    private val previousPageFocusId: Int,
+    private val nextPageFocusId: Int,
 ) : BaseAdapter() {
     private val density = context.resources.displayMetrics.density
     private val songRows = ceil(songs.size / 2.0).toInt()
+    private val headerRows = if (singers.isEmpty()) 0 else 1
+    private val songAdapter = SongListAdapter(
+        context, songs, "quick", 0, previousPageFocusId, nextPageFocusId, stateFor,
+        SongListCallbacks(
+            onPrimary = onSongClick, onDownload = onSongMore, onMore = onSongMore,
+            onTop = onSongClick, onDelete = {}, onPauseResume = onSongClick,
+        ),
+        catalogRows = 3, headerHeightDp = if (singers.isEmpty()) 0 else 132,
+    )
+
+    fun refreshVisibleStates(list: android.widget.ListView): Boolean =
+        songAdapter.refreshVisibleStates(list, headerRows)
 
     override fun getCount(): Int = (if (singers.isEmpty()) 0 else 1) + songRows
     override fun getItem(position: Int): Any = position
-    override fun getItemId(position: Int): Long = position.toLong()
+    override fun getItemId(position: Int): Long =
+        if (position < headerRows) Long.MIN_VALUE else songAdapter.getItemId(position - headerRows)
+    override fun hasStableIds(): Boolean = true
+    override fun getViewTypeCount(): Int = 2
+    override fun getItemViewType(position: Int): Int = if (position < headerRows) 0 else 1
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
         if (singers.isNotEmpty() && position == 0) return createSingerRow()
         val songRow = position - if (singers.isEmpty()) 0 else 1
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-            repeat(2) { column ->
-                val song = songs.getOrNull(songRow * 2 + column)
-                addView(
-                    song?.let(::createSongCell) ?: View(context),
-                    LinearLayout.LayoutParams(0, dp(60), 1f).apply {
-                        setMargins(dp(3), dp(2), dp(3), dp(2))
-                    },
-                )
-            }
-        }
+        return songAdapter.getView(songRow, convertView, parent)
     }
 
     private fun createSingerRow(): View = LinearLayout(context).apply {
@@ -87,45 +95,6 @@ class QuickSearchAdapter(
         TvFocusStyler.install(this)
     }
 
-    private fun createSongCell(song: Song): View = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-        setPadding(dp(12), dp(3), dp(2), dp(3))
-        setBackgroundResource(R.drawable.ott_bg_item)
-        isClickable = true
-        isFocusable = true
-        descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
-        val marker = "focus:song:${song.id ?: song.dbId ?: song.filename ?: "${song.title}|${song.singer}"}"
-        setAccessibleFocus(marker, "歌曲，${song.title.orEmpty()}，歌手，${song.singer.orEmpty()}，双击点歌，长按查看更多")
-        addView(LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_VERTICAL
-            addView(TextView(context).apply {
-                text = song.title
-                textSize = 16f
-                setTextColor(Color.WHITE)
-                isSingleLine = true
-                ellipsize = TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-            addView(TextView(context).apply {
-                text = song.singer
-                textSize = 12f
-                setTextColor(Color.rgb(193, 193, 193))
-                isSingleLine = true
-                ellipsize = TextUtils.TruncateAt.END
-            }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
-        }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
-        addView(ImageView(context).apply {
-            setImageResource(R.drawable.ott_ic_more)
-            setPadding(dp(8), dp(8), dp(8), dp(8))
-            isClickable = false
-            isFocusable = false
-        }, LinearLayout.LayoutParams(dp(40), dp(40)))
-        installPress(this)
-        setOnClickListener { onSongClick(song) }
-        setOnLongClickListener { onSongMore(song); true }
-        TvFocusStyler.install(this)
-    }
 
     private fun installPress(view: View) {
         view.setOnTouchListener { target, event ->
