@@ -3,6 +3,11 @@ plugins {
     id "org.jetbrains.kotlin.android"
 }
 
+// 完整编译大型 TV 页面时，避免继承默认 512 MiB 导致编译器反复回收内存。
+kotlin {
+    kotlinDaemonJvmArgs = ["-Xmx2g", "-XX:MaxMetaspaceSize=768m"]
+}
+
 android {
     namespace "com.local.ktv"
     compileSdk 35
@@ -11,8 +16,8 @@ android {
         applicationId "com.local.ktv"
         minSdk 21
         targetSdk 25
-        versionCode 4
-        versionName "2.1.1"
+        versionCode 5
+        versionName "2.1.2"
 
     }
 

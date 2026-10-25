@@ -159,7 +159,7 @@ class MainActivity : AppCompatActivity() {
     private val remoteNetworkMonitor = object : Runnable {
         override fun run() {
             val ip = localIp().takeIf { LocalRemoteServer.isPrivateIpv4(it) }
-            if (ip != remoteServer.address()) {
+            if (ip != remoteServer.address() || (ip != null && !remoteServer.isRunning())) {
                 remoteServer.stop()
                 startRemoteServer()
                 updateMobileQrOverlay()
@@ -3639,24 +3639,7 @@ class MainActivity : AppCompatActivity() {
         return "http://$host:${remoteServer.port()}/mobile"
     }
 
-    private fun localIp(): String {
-        try {
-            val interfaces = NetworkInterface.getNetworkInterfaces()
-            while (interfaces.hasMoreElements()) {
-                val network = interfaces.nextElement()
-                val addresses = network.getInetAddresses()
-                while (addresses.hasMoreElements()) {
-                    val address = addresses.nextElement()
-                    if (!address.isLoopbackAddress() && address.getHostAddress().indexOf(':') < 0 &&
-                        LocalRemoteServer.isPrivateIpv4(address.hostAddress)) {
-                        return address.getHostAddress()
-                    }
-                }
-            }
-        } catch (ignored: Exception) {
-        }
-        return "127.0.0.1"
-    }
+    private fun localIp(): String = LanAddressResolver.resolve(this).orEmpty()
 
     private fun showScoreDialog() {
         val box = LinearLayout(this)

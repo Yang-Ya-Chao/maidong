@@ -60,6 +60,7 @@
 
         <activity
             android:name=".MainActivity"
+            android:banner="@drawable/banner"
             android:configChanges="keyboard|keyboardHidden|navigation|orientation|screenSize"
             android:exported="true"
             android:launchMode="singleInstance"

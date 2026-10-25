@@ -65,20 +65,25 @@ class LocalRemoteServer(private val context: Context) {
             lastError = "端口 8765–8775 均被占用"
             return false
         }
-        server = candidate
+        val listener = candidate
+        server = listener
         boundAddress = address
         lastError = null
         running = true
         pool.execute {
             try {
-                while (running) {
-                    val socket = server?.accept() ?: break
+                while (running && server === listener) {
+                    val socket = listener.accept()
                     pool.execute { handle(socket) }
                 }
             } catch (e: Exception) {
-                if (running) lastError = e.message ?: "本地服务异常"
+                synchronized(this@LocalRemoteServer) {
+                    if (running && server === listener) lastError = e.message ?: "本地服务异常"
+                }
             } finally {
-                running = false
+                synchronized(this@LocalRemoteServer) {
+                    if (server === listener) running = false
+                }
             }
         }
         return true
@@ -225,6 +230,7 @@ class LocalRemoteServer(private val context: Context) {
 
     companion object {
         fun isPrivateIpv4(value: String?): Boolean = runCatching {
+            if (value.isNullOrBlank()) return@runCatching false
             val address = InetAddress.getByName(value)
             address is Inet4Address && isPrivateAddress(address)
         }.getOrDefault(false)
