@@ -179,7 +179,7 @@ internal object SongStorage {
             if (writable) check(usbCacheFolder(root).canWrite()) { "U盘歌曲目录不可写，请重新选择U盘存储" }
             return
         }
-        check(uri.scheme == "content" && DocumentsContract.isTreeUri(uri)) { "请选择U盘中的歌曲文件夹" }
+        check(uri.scheme == "content" && androidx.core.provider.DocumentsContractCompat.isTreeUri(uri)) { "请选择U盘中的歌曲文件夹" }
         check(UsbDocumentPolicy.acceptsFolder(uri.authority, DocumentsContract.getTreeDocumentId(uri))) {
             "请选择U盘文件夹，不能选择本机存储"
         }
@@ -232,7 +232,7 @@ internal object SongStorage {
                 validateUsbTree(tree, false)
                 // 厂家/插件提供器没有 /storage/卷标 映射，通过实际写入句柄检查容量。
                 if (tree.authority != EXTERNAL_PROVIDER) return documentCapacity(choice)
-                check(choice.tree.isNotBlank() && DocumentsContract.isTreeUri(tree)) { "U盘目录无效" }
+                check(choice.tree.isNotBlank() && androidx.core.provider.DocumentsContractCompat.isTreeUri(tree)) { "U盘目录无效" }
                 val volume = DocumentsContract.getTreeDocumentId(tree).substringBefore(':')
                 check(volume.isNotBlank() && volume.lowercase() !in setOf("primary", "home", "downloads") &&
                     '/' !in volume && '\\' !in volume) { "U盘卷标无效" }

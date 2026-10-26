@@ -70,7 +70,8 @@ object SingerAvatarLoader {
             connection.instanceFollowRedirects = true
             connection.setRequestProperty("User-Agent", "MaidongKTV/${BuildConfig.VERSION_NAME}")
             require(connection.responseCode in 200..299)
-            require(connection.contentLengthLong <= 0 || connection.contentLengthLong <= MAX_DOWNLOAD_BYTES)
+            val contentLength = connection.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
+            require(contentLength <= 0 || contentLength <= MAX_DOWNLOAD_BYTES)
             var total = 0L
             connection.inputStream.buffered().use { input ->
                 FileOutputStream(temporary).buffered().use { output ->

@@ -77,7 +77,7 @@ object AppUpdateManager {
                 }
                 try {
                     require(connection.responseCode in 200..299) { "下载失败：HTTP ${connection.responseCode}" }
-                    val total = connection.contentLengthLong
+                    val total = connection.getHeaderField("Content-Length")?.toLongOrNull() ?: -1L
                     connection.inputStream.use { input ->
                         FileOutputStream(partial).use { output ->
                             val buffer = ByteArray(128 * 1024)
