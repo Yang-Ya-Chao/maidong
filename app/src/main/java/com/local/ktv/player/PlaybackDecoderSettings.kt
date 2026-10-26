@@ -2,8 +2,8 @@ package com.local.ktv.player
 
 import android.content.Context
 
-/** Decoder selection is automatic; legacy saved choices no longer affect playback. */
+/** Legacy saved system/automatic choices no longer affect the FFmpeg-only engine. */
 object PlaybackDecoderSettings {
     @Suppress("UNUSED_PARAMETER")
-    fun load(context: Context): PlaybackDecoderMode = PlaybackDecoderMode.AUTO
+    fun load(context: Context): PlaybackDecoderMode = PlaybackDecoderMode.SOFTWARE
 }

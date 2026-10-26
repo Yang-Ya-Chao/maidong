@@ -27,6 +27,17 @@ object SongOkDownloadManager {
                       val copyExisting: Boolean = false) {
         var staging: File? = null
         val cancelled = AtomicBoolean(false)
+        val readersStopped = AtomicBoolean(false)
+        val connections = java.util.concurrent.CopyOnWriteArraySet<HttpURLConnection>()
+        val inFlight = hashMapOf<Long, Long>()
+        var headerNanos = 0L
+        var readNanos = 0L
+        var writeNanos = 0L
+        var callbackNanos = 0L
+        var requests = 0
+        var lastProgressTime = 0L
+        var lastProgressValue = -1
+        val createdAt = System.nanoTime()
         val callbacks = CopyOnWriteArrayList<DownloadCallback>()
         @Volatile var connection: HttpURLConnection? = null
         @Volatile var transferred = 0L
@@ -37,10 +48,12 @@ object SongOkDownloadManager {
     }
     fun transferStatus(song: Song): Pair<Int, Long>? {
         val job = jobs[key(song)]?.takeUnless { it.cancelled.get() } ?: return null
+        return synchronized(job) {
         val elapsed = (System.nanoTime() - job.startedAt).coerceAtLeast(1L)
         val speed = if (job.startedAt == 0L) 0L else (job.transferred * 1_000_000_000.0 / elapsed).toLong()
-        val percent = if (job.total > 0) (job.received * 100 / job.total).toInt().coerceIn(0, 99) else job.progress
-        return percent to speed
+        val percent = if (job.total > 0) ((job.received + job.inFlight.values.sum()) * 100 / job.total).toInt().coerceIn(0, 99) else job.progress
+        percent to speed
+        }
     }
 
     private data class Block(val bytes: ByteArray, val end: Long, val total: Long)
@@ -48,6 +61,7 @@ object SongOkDownloadManager {
     private val locks = ConcurrentHashMap<String, Any>()
     private val spaceBudget = DownloadSpaceBudget()
     private val io = Executors.newFixedThreadPool(3)
+    private val rangeIo = Executors.newFixedThreadPool(6)
     @Volatile private var resetting = false
     @Volatile internal var reclaimCache: ((SongStorage.Choice, Long) -> Unit)? = null
 
@@ -60,6 +74,7 @@ object SongOkDownloadManager {
                 snapshot.values.forEach { job ->
                     job.cancelled.set(true)
                     job.connection?.disconnect()
+                    job.connections.forEach { it.disconnect() }
                 }
             }
         }
@@ -112,7 +127,10 @@ object SongOkDownloadManager {
     @JvmStatic fun isDownloading(song: Song): Boolean = jobs[key(song)]?.cancelled?.get() == false
     @JvmStatic fun getDownloadProgress(song: Song): Int = jobs[key(song)]?.progress ?: if(isDownloaded(song)) 100 else 0
     @JvmStatic fun cancelDownload(song: Song) {
-        jobs[key(song)]?.let { it.cancelled.set(true); it.connection?.disconnect() }
+        jobs[key(song)]?.let { job ->
+            job.cancelled.set(true); job.connection?.disconnect()
+            job.connections.forEach { it.disconnect() }
+        }
     }
     @JvmStatic fun deleteCache(song: Song): Boolean {
         val destination = jobs[key(song)]?.destination
@@ -185,7 +203,11 @@ object SongOkDownloadManager {
                         it.onDownloadFailed(song, error.message?.take(180) ?: "下载失败")
                     }
                 } finally {
+                    job.readersStopped.set(true)
+                    job.connections.forEach { it.disconnect() }
                     job.connection?.disconnect()
+                    val elapsed = (System.nanoTime() - job.createdAt) / 1_000_000
+                    android.util.Log.i("SongOkDownload", "传输统计 song=$id elapsedMs=$elapsed bytes=${job.transferred} requests=${job.requests} headerMs=${job.headerNanos / 1_000_000} readMs=${job.readNanos / 1_000_000} writeMs=${job.writeNanos / 1_000_000} callbackMs=${job.callbackNanos / 1_000_000}")
                     spaceBudget.release(id)
                     job.staging?.deleteRecursively()
                     jobs.remove(id,job)
@@ -194,16 +216,31 @@ object SongOkDownloadManager {
         }
     }
 
-    private fun block(url: String, start: Long, wireEnd: Long, job: Job): Block {
-        if(job.cancelled.get()) throw IOException("下载已暂停")
+    private fun block(url: String, start: Long, wireEnd: Long, job: Job, reportRange: Boolean = false, attemptStopped: AtomicBoolean? = null): Block {
+        if(job.cancelled.get() || job.readersStopped.get() || attemptStopped?.get() == true) throw IOException("下载已暂停")
         val connection=URL(url).openConnection() as HttpURLConnection
-        job.connection=connection
+        job.connections.add(connection)
+        if (job.cancelled.get() || job.readersStopped.get() || attemptStopped?.get() == true ||
+            Thread.currentThread().isInterrupted) {
+            job.connections.remove(connection); connection.disconnect()
+            throw IOException("下载已暂停")
+        }
+        val requestStarted = System.nanoTime()
+        if (reportRange) synchronized(job) { job.inFlight[start] = 0L }
         try {
             connection.connectTimeout=15_000; connection.readTimeout=30_000
             connection.setRequestProperty("Range","bytes=$start-$wireEnd")
             connection.setRequestProperty("Accept-Encoding","identity")
             val code=connection.responseCode
-            if(code != 206) throw MediaHttpException(code, connection.responseMessage.orEmpty())
+            synchronized(job) { job.headerNanos += System.nanoTime() - requestStarted; job.requests++ }
+            if(code != 206) {
+                val detail = connection.errorStream?.use { input ->
+                    val data = ByteArray(512); val count = input.read(data)
+                    if (count > 0) String(data, 0, count, Charsets.UTF_8) else ""
+                }.orEmpty()
+                throw MediaHttpException(code, if (detail.contains("expired", true)) "URL expired" else connection.responseMessage.orEmpty())
+            }
+            val readStarted = System.nanoTime()
             val range=MediaRangeProtocol.parse(connection.getHeaderField("Content-Range"),start)
             val end=range.end
             val total=range.total
@@ -212,19 +249,23 @@ object SongOkDownloadManager {
             connection.inputStream.use { input ->
                 var at=0
                 while(at < expected) {
-                    if(job.cancelled.get()) throw IOException("下载已暂停")
+                    if(job.cancelled.get() || job.readersStopped.get() || attemptStopped?.get() == true || Thread.currentThread().isInterrupted) throw IOException("下载已暂停")
                     val n=input.read(data,at,expected-at)
+                    if (attemptStopped?.get() == true || job.cancelled.get()) throw IOException("下载已暂停")
                     if(n < 0) throw IOException("媒体分段不完整")
-                    if (job.startedAt == 0L) job.startedAt = System.nanoTime()
-                    job.transferred += n
-                    job.total = total
-                    job.received = start + at + n
+                    synchronized(job) {
+                        if (job.startedAt == 0L) job.startedAt = System.nanoTime()
+                        job.transferred += n
+                        job.total = total
+                        if (reportRange) job.inFlight[start] = (at + n).toLong()
+                    }
                     at+=n
                 }
                 if(input.read() != -1) throw IOException("分段长度超出声明范围")
             }
+            synchronized(job) { job.readNanos += System.nanoTime() - readStarted }
             return Block(data,end,total)
-        } finally { connection.disconnect(); if(job.connection === connection) job.connection=null }
+        } finally { connection.disconnect(); job.connections.remove(connection) }
     }
 
     private fun isUsbStorageFailure(error: Exception): Boolean {
@@ -248,7 +289,13 @@ object SongOkDownloadManager {
 
     private fun progress(song: Song, job: Job, value: Int) {
         job.progress = value.coerceIn(0, 99)
+        val now = System.nanoTime()
+        if (job.progress == job.lastProgressValue || now - job.lastProgressTime < 250_000_000L) return
+        job.lastProgressTime = now
+        job.lastProgressValue = job.progress
+        val begin = System.nanoTime()
         job.callbacks.forEach { it.onDownloadProgress(song, job.progress) }
+        job.callbackNanos += System.nanoTime() - begin
     }
 
     private fun upload(song: Song, job: Job, media: SongStorage.Media) {
@@ -304,16 +351,22 @@ object SongOkDownloadManager {
         }
         val partial = directory.child(job.filename + ".download")
         var received = 0L
+        var nextSpaceCheck = 0L
         partial.writer().use { output ->
             output.reset()
             val buffer = ByteArray(64 * 1024)
             while (received < size) {
                 check(!job.cancelled.get()) { "保存已暂停" }
-                spaceBudget.reserve(key(song), SongStorage.volumeKey(job.destination),
-                    size - received, output.available(), job.destination.reserveBytes)
+                if (received >= nextSpaceCheck) {
+                    spaceBudget.reserve(key(song), SongStorage.volumeKey(job.destination),
+                        size - received, output.available(), job.destination.reserveBytes)
+                    nextSpaceCheck = received + CHUNK
+                }
                 val count = input.read(buffer, 0, minOf(buffer.size.toLong(), size - received).toInt())
                 check(count > 0) { "歌曲下载不完整" }
-                output.write(buffer.copyOf(count))
+                val writeStarted = System.nanoTime()
+                output.write(buffer, 0, count)
+                job.writeNanos += System.nanoTime() - writeStarted
                 if (job.startedAt == 0L) job.startedAt = System.nanoTime()
                 job.transferred += count
                 job.received = received + count
@@ -342,13 +395,15 @@ object SongOkDownloadManager {
     private class MediaHttpException(val code: Int, val detail: String): IOException("媒体服务器 HTTP $code: $detail")
     private fun fetch(song: Song, job: Job) {
         val number=song.sourceSongNumber ?: throw IOException("该条目没有新歌源编号，无法下载")
+        val attemptStopped = AtomicBoolean(false)
+        synchronized(job) { job.inFlight.clear() }
         var address=IgebaApiClient.address(number)
+        val addressLock = Any()
         var addressRefreshes=0
-        var addressNeedsProbe=false
         var exclusive=false
         var mediaTotal: Long? = null
         fun probe(): Block {
-            val result=block(address.url,0,63,job)
+            val result=block(address.url,0,63,job, attemptStopped = attemptStopped)
             val range=MediaRangeProtocol.ResponseRange(0,result.end,result.total)
             exclusive=MediaRangeProtocol.exclusiveNode(range)
             if(mediaTotal != null && mediaTotal != result.total) throw IOException("更新地址后媒体长度发生变化")
@@ -356,14 +411,12 @@ object SongOkDownloadManager {
                 throw IOException("歌源返回的不是已验证的 MKV 媒体")
             }
             mediaTotal=result.total
-            addressNeedsProbe=false
             return result
         }
         fun refresh(error: MediaHttpException) {
             if(error.code != 403 || !error.detail.contains("expired",true) || addressRefreshes >= 2) throw error
             if(job.cancelled.get()) throw IOException("下载已暂停")
             addressRefreshes++
-            addressNeedsProbe=true
             android.util.Log.i("SongOkDownload", "过期地址刷新，歌曲=$number 次数=$addressRefreshes/2")
             address=IgebaApiClient.address(number)
         }
@@ -374,10 +427,20 @@ object SongOkDownloadManager {
             }
         }
         val initialProbe=retryExpired { probe() }
-        fun read(start: Long, stopExclusive: Long): Block {
-            return retryExpired {
-                if (addressNeedsProbe) probe()
-                block(address.url,start,MediaRangeProtocol.wireEnd(stopExclusive,exclusive),job)
+        fun read(start: Long, stopExclusive: Long, reportRange: Boolean = false): Block {
+            while (true) {
+                val snapshot = synchronized(addressLock) { address.url to exclusive }
+                try {
+                    return block(snapshot.first, start,
+                        MediaRangeProtocol.wireEnd(stopExclusive, snapshot.second), job, reportRange, attemptStopped)
+                } catch (error: MediaHttpException) {
+                    synchronized(addressLock) {
+                        if (snapshot.first == address.url) {
+                            refresh(error)
+                            retryExpired { probe() }
+                        }
+                    }
+                }
             }
         }
         song.sourceVoiceChannel=address.voiceChannel
@@ -416,15 +479,26 @@ object SongOkDownloadManager {
             checkSpace()
             if(offset==0L) { output.write(initialProbe.bytes); offset=initialProbe.bytes.size.toLong(); checkSpace() }
             output.position(offset)
-            while(offset < initialProbe.total) {
-                val stop=(offset+CHUNK).coerceAtMost(initialProbe.total)
-                val data=read(offset,stop)
-                if(data.total != initialProbe.total || data.end != stop-1) throw IOException("媒体长度或分段发生变化")
-                checkSpace()
-                output.write(data.bytes); offset+=data.bytes.size
-                checkSpace()
-                job.progress=(offset*100/initialProbe.total).toInt().coerceAtMost(99)
-                job.callbacks.forEach { it.onDownloadProgress(song,job.progress) }
+            synchronized(job) { job.received = offset; job.total = initialProbe.total }
+            try {
+                OrderedRangePrefetch.transfer(offset, initialProbe.total, CHUNK, rangeIo,
+                    { job.cancelled.get() || attemptStopped.get() },
+                    { start, stop -> read(start, stop, true) },
+                    { start, stop, data ->
+                        if (start != offset || data.total != initialProbe.total || data.end != stop - 1 ||
+                            data.bytes.size.toLong() != stop - start) throw IOException("媒体长度或分段发生变化")
+                        checkSpace()
+                        val writeStarted = System.nanoTime()
+                        output.write(data.bytes)
+                        job.writeNanos += System.nanoTime() - writeStarted
+                        offset = stop
+                        synchronized(job) { job.received = offset; job.inFlight.remove(start) }
+                        checkSpace()
+                        progress(song, job, (offset * 100 / initialProbe.total).toInt())
+                    })
+            } finally {
+                attemptStopped.set(true)
+                job.connections.forEach { it.disconnect() }
             }
             output.sync()
             check(output.size()==initialProbe.total) { "完整文件长度校验失败" }

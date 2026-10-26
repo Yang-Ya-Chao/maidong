@@ -1,0 +1,4 @@
+# Preserve upstream license text verbatim, including its original whitespace.
+app/src/main/assets/ffmpeg-licenses/** -text -whitespace
+third_party/ffmpeg/licenses/** -text -whitespace
+third_party/ffmpeg/lib/**/*.so binary

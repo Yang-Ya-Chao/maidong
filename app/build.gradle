@@ -11,15 +11,31 @@ kotlin {
 android {
     namespace "com.local.ktv"
     compileSdk 35
+    ndkVersion "27.0.12077973"
+
+    externalNativeBuild {
+        ndkBuild { path file("src/main/cpp/Android.mk") }
+    }
 
     defaultConfig {
         applicationId "com.local.ktv"
         minSdk 21
+        externalNativeBuild {
+            ndkBuild {
+                arguments "NDK_APPLICATION_MK:=${file('src/main/cpp/Application.mk').absolutePath}"
+                if (System.getProperty("os.name").toLowerCase().contains("windows")) {
+                    arguments "HOST_OS=windows", "HOST_ARCH=x86_64"
+                }
+            }
+        }
         targetSdk 25
-        versionCode 6
-        versionName "2.1.3"
+        versionCode 7
+        versionName "2.1.4"
 
     }
+
+    // 回归媒体保存在应用测试目录，不打包进交付 APK。
+
 
     // 签名配置:使用已有的 ktv_keystore.jks
     signingConfigs {
@@ -51,7 +67,9 @@ android {
 
     // 支持 .ts 视频文件(aapt 不压缩这些文件以避免 SoundPool/MediaPlayer 问题)
     androidResources {
-        noCompress 'ts', 'mp3', 'mp4', 'aac', 'm4a', 'flac', 'wav'
+        ignoreAssetsPattern = "!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~" +
+            (project.hasProperty("includeDecoderSamples") ? "" : ":decoder-samples")
+        noCompress 'mkv', 'ts', 'mp3', 'mp4', 'aac', 'm4a', 'flac', 'wav'
     }
 
     // 关闭发布构建的 lint vital 检查(本地分发的 APK 不需要 Google Play 上架要求)
@@ -81,8 +99,6 @@ android {
 
 dependencies {
     coreLibraryDesugaring "com.android.tools:desugar_jdk_libs:2.1.5"
-    implementation "androidx.media3:media3-exoplayer:1.7.1"
-    implementation "io.github.anilbeesetti:nextlib-media3ext:1.7.1-0.9.0"
     implementation "androidx.core:core:1.12.0"
     implementation "androidx.appcompat:appcompat:1.6.1"
     implementation "com.google.zxing:core:3.5.3"

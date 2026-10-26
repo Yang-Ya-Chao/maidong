@@ -404,8 +404,8 @@ internal object SongStorage {
         fun position(offset: Long) { channel.position(offset) }
         fun reset() { channel.truncate(0); channel.position(0) }
         fun size(): Long = channel.size()
-        fun write(bytes: ByteArray) {
-            val buffer = ByteBuffer.wrap(bytes)
+        fun write(bytes: ByteArray, offset: Int = 0, count: Int = bytes.size - offset) {
+            val buffer = ByteBuffer.wrap(bytes, offset, count)
             while (buffer.hasRemaining()) check(channel.write(buffer) > 0) { "歌曲文件写入中断" }
         }
         fun sync() { channel.force(true) }

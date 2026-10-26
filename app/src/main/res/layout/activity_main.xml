@@ -521,7 +521,7 @@
                         android:paddingStart="6dp"
                         android:paddingEnd="6dp"
                         android:background="@drawable/bg_left_header">
-                        <TextView
+                        <com.local.ktv.LoopingStatusTextView
                             android:id="@+id/text_current_song_tip"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
@@ -732,7 +732,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="match_parent" />
 
-                    <TextView
+                    <com.local.ktv.LoopingStatusTextView
                         android:id="@+id/home_player_song_title"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"

@@ -632,7 +632,6 @@ class MainActivity : AppCompatActivity() {
         }
         main.removeCallbacks(storageRefreshRunnable)
         main.removeCallbacks(downloadStatusTicker)
-        main.removeCallbacks(statusScrollTicker)
         openListBrowser.close()
         super.onDestroy()
         io.shutdownNow()
@@ -2160,7 +2159,12 @@ class MainActivity : AppCompatActivity() {
         logo.setImageResource(R.drawable.ktv_logo)
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER)
         header.addView(logo, LinearLayout.LayoutParams(dp(42), dp(42)))
-        val song = label(currentAndNextText(), 18, Color.WHITE)
+        val song = LoopingStatusTextView(this).apply {
+            text = currentAndNextText()
+            textSize = 18f
+            setTextColor(Color.WHITE)
+            setPadding(dp(8), dp(6), dp(8), dp(6))
+        }
         fullScreenSongInfo = song
         header.addView(song, LinearLayout.LayoutParams(0, dp(48), 1f))
         val back = label("返回", 15, Color.WHITE)
@@ -4750,10 +4754,13 @@ class MainActivity : AppCompatActivity() {
                 })
             }
 
+            private var lastProgressSave = 0L
             override fun onDownloadProgress(song: Song, progress: Int) {
                 if (extraCallback != null) extraCallback.onDownloadProgress(song, progress)
-                if (::stateDatabase.isInitialized) runCatching {
-                    stateDatabase.updateDownload(song, "downloading", progress)
+                val now = System.nanoTime()
+                if (::stateDatabase.isInitialized && now - lastProgressSave >= 1_000_000_000L) {
+                    lastProgressSave = now
+                    runCatching { stateDatabase.updateDownload(song, "downloading", progress) }
                 }
                 main.post(Runnable {
                     for (task in downloads) {
@@ -6739,8 +6746,6 @@ class MainActivity : AppCompatActivity() {
         // 顶部状态栏 - 当前/下首
         updateScrollingStatus(textCurrentSongTip, currentAndNextText())
         updateScrollingStatus(fullScreenSongInfo, currentAndNextText())
-        main.removeCallbacks(statusScrollTicker)
-        main.postDelayed(statusScrollTicker, 40L)
         updateOrderBadge()
         if (browseMode == "ordered" || browseMode == "sang" || browseMode == "downloads") {
             renderSongList()
@@ -6749,28 +6754,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateScrollingStatus(view: TextView?, info: String) {
         view ?: return
-        val offset = view.scrollX
-        if (view.maxLines != 1) view.setSingleLine(true)
-        if (view.ellipsize != null) view.ellipsize = null
         if (view.text.toString() != info) view.text = info
-        view.scrollTo(offset, 0)
-    }
-
-    private val statusScrollTicker = object : Runnable {
-        override fun run() {
-            if (isFinishing || isDestroyed) return
-            var overflow = false
-            listOfNotNull(textCurrentSongTip, homePlayerTitle, fullScreenSongInfo).forEach { view ->
-                if (!view.isShown || view.width <= 0) return@forEach
-                val limit = (view.paint.measureText(view.text.toString()) - view.width
-                    + view.paddingLeft + view.paddingRight).toInt()
-                if (limit > 0) {
-                    overflow = true
-                    view.scrollTo(if (view.scrollX > limit + dp(32)) 0 else view.scrollX + max(1, dp(1)), 0)
-                } else view.scrollTo(0, 0)
-            }
-            if (overflow) main.postDelayed(this, 40L)
-        }
+        // LoopingStatusTextView retains its animation phase when status/progress changes.
+        view.scrollTo(0, 0)
     }
 
     private val downloadStatusTicker = object : Runnable {

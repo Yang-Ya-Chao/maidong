@@ -1,101 +1,166 @@
 package com.local.ktv
+
 import android.app.Activity
-import android.os.*
+import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.net.Uri
 import android.util.Log
-import android.widget.*
+import android.widget.LinearLayout
+import android.widget.TextView
 import com.local.ktv.player.*
-import androidx.media3.common.util.UnstableApi
 import java.io.File
+import org.json.JSONObject
 
-@UnstableApi
+/** Exercises the production FFmpeg engine with local regression files; never used in release. */
 class DecoderTestActivity : Activity() {
     private val handler = Handler(Looper.getMainLooper())
     private lateinit var engine: KtvPlaybackEngine
+    private lateinit var root: LinearLayout
+    private lateinit var view: KtvVideoView
     private lateinit var status: TextView
     private lateinit var directory: File
+    private val report = StringBuilder()
+    private val sampleNames = setOf("rv40-aac-dual.mkv", "h264-mp1-dual.mkv", "h264-aac-dual.mkv", "aac-sbr.mkv", "h264-ac3.mkv", "h264-eac3.mkv", "h264-mp3.mkv", "vorbis-multiaudio.mkv")
     private var samples = emptyList<File>()
+    private val decodedDurations = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private var index = 0
     private var error = 0
-    private var before = 0
-    private val report = StringBuilder()
+    private var complete = false
+    private var failures = 0
+    private var sampleFailed = false
+    private var positionBeforePause = 0
+    private var seekTarget = 0
+    private var pcmBeforeSwitch = 0L
+    private var framesBeforeSeek = 0L
+    private var run = 0
+    private var destroyed = false
+
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
-        val root = LinearLayout(this).apply { orientation = 1; setBackgroundColor(-16777216) }
-        status = TextView(this).apply { textSize = 18f; setTextColor(-1) }
-        val view = KtvVideoView(this)
+        root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(-16777216) }
+        status = TextView(this).apply { textSize = 16f; setTextColor(-1) }
+        view = KtvVideoView(this)
         root.addView(view, LinearLayout.LayoutParams(-1, 0, 1f))
-        root.addView(status, LinearLayout.LayoutParams(-1, 160))
+        root.addView(status, LinearLayout.LayoutParams(-1, 180))
         setContentView(root)
-        Log.i("DecoderMatrix", "RUNTIME abis=${Build.SUPPORTED_ABIS.joinToString()} nativeDir=${applicationInfo.nativeLibraryDir}")
-        getSharedPreferences("playback_decoder", MODE_PRIVATE).edit().putString("mode", "SYSTEM").apply()
+        directory = File(getExternalFilesDir(null), "ffmpeg-validation").apply { mkdirs() }
         engine = KtvPlaybackEngine(this)
-        check(engine.decoderMode == PlaybackDecoderMode.AUTO) { "旧设置未迁移到自动模式" }
         engine.attach(view)
         engine.setOnErrorListener { _, _, code -> error = code; true }
-        directory = File(getExternalFilesDir(null), "decoder-samples").apply { mkdirs() }
+        engine.setOnCompletionListener { complete = true }
         Thread {
-            val names = setOf("h264-mp3.mkv", "h264-ac3.mkv", "h264-eac3.mkv", "aac-sbr.mkv", "vorbis-multiaudio.mkv")
-            samples = assets.list("decoder-samples").orEmpty().filter { it in names }.sorted().map { name ->
-                File(directory, name).also { output ->
-                    assets.open("decoder-samples/$name").use { input -> output.outputStream().use { input.copyTo(it) } }
+            try {
+                samples = assets.list("decoder-samples").orEmpty().filter { it in sampleNames }.sorted().map { name ->
+                    File(directory, name).also { output ->
+                        assets.open("decoder-samples/$name").use { input -> output.outputStream().use { input.copyTo(it) } }
+                    }
                 }
-            }
-            val local = Song.local("/test/周杰伦-稻香.mkv", "周杰伦-稻香.mkv")
-            val searches = listOf("周杰伦", "zjl", "zhoujielun").all { SongSearch.matches(local, it) &&
-                SongSearch.matches(local, it, singerOnly = true) }
-            val savedStorage = SongStorage.choice()
-            val available = SongStorage.capacity(SongStorage.Choice()).available
-            SongStorage.configure(false, "", 64.0)
-            val clamped = SongStorage.choice().reserveBytes
-            val reservePassed = clamped in 0..minOf(64L * 1_073_741_824L, available)
-            SongStorage.configure(savedStorage.usb, savedStorage.tree, savedStorage.reserveBytes / 1_073_741_824.0)
-            handler.post {
-                record("SEARCH singerAndPinyin=$searches")
-                record("RESERVE pass=$reservePassed available=$available corrected=$clamped")
-                nextSample()
+                if (samples.isEmpty()) samples = directory.listFiles().orEmpty().filter { it.name in sampleNames }.sortedBy { it.name }
+                check(samples.isNotEmpty()) { "未找到解码回归样本" }
+                for (sample in samples) {
+                    if (destroyed) return@Thread
+                    val nativeResult = FfmpegValidation.checkFile(sample.path)
+                    val result = JSONObject(nativeResult)
+                    decodedDurations[sample.name] = result.getLong("decodedDurationMs").toInt()
+                    val passed = result.getInt("errors") == 0 &&
+                        result.getLong("videoFrames") > 0 && result.getLong("audioSamples") > 0 &&
+                        result.getInt("audioTracks") > 0
+                    handler.post {
+                        if (!passed) failures++
+                        record("FULL file=${sample.name} pass=$passed $nativeResult")
+                    }
+                }
+                handler.post { nextSample() }
+            } catch (failure: Throwable) {
+                handler.post { failures++; record("FATAL $failure"); record("DONE failures=$failures") }
             }
         }.start()
     }
-    private fun record(value: String) {
-        Log.i("DecoderMatrix", value)
-        report.append(value).append('\n')
+
+    private fun record(text: String) {
+        Log.i("DecoderMatrix", text)
+        report.append(text).append('\n')
         File(directory, "results.txt").writeText(report.toString())
-        status.text = if (index < samples.size) "自动解码测试\n样本：${samples[index].name}" else "自动解码测试完成"
+        status.text = text
+    }
+    private fun checkResult(name: String, passed: Boolean, details: String = "") {
+        if (!passed) { failures++; sampleFailed = true }
+        record("CHECK file=${samples[index].name} $name pass=$passed $details")
+    }
+    private fun later(delay: Long, action: () -> Unit) {
+        val generation = run
+        handler.postDelayed({ if (!destroyed && generation == run) action() }, delay)
     }
     private fun nextSample() {
+        if (destroyed) return
         if (index >= samples.size) {
-            record("DONE samples=${samples.size}")
-            report.lines().filter { it.startsWith("RESULT") }.forEach { Log.i("DecoderMatrix", "FINAL $it") }
+            engine.stop()
+            record("DONE samples=${samples.size} failures=$failures")
             return
         }
+        ++run
+        error = 0; complete = false; sampleFailed = false
         engine.stop()
         engine.setVideoUri(Uri.fromFile(samples[index]))
         engine.start()
-        error = 0
-        before = 0
         record("START file=${samples[index].name}")
-        handler.postDelayed({ verify() }, 15000)
-    }
-    private fun verify() {
-        val pos = engine.currentPosition
-        val progressed = engine.isPlaying && pos - before > 700
-        val endedShort = !engine.isPlaying && engine.duration > 0 && pos >= engine.duration - 150
-        val videoPassed = error == 0 && engine.hasRenderedFirstFrame && (progressed || endedShort)
-        val audioExpected = samples[index].name !in setOf("hdr10tags-both.mkv", "spherical.mkv", "msmpeg4v3-subrip.mkv")
-        val audioPassed = !audioExpected || (!engine.decoderSummary.substringAfter('\n').contains("等待播放") &&
-            engine.decodedNonSilentSamples > 0)
-        val passed = videoPassed && audioPassed
-        record("RESULT file=${samples[index].name} mode=${engine.decoderMode} pass=$passed " +
-            "videoPass=$videoPassed audioPass=$audioPassed firstFrame=${engine.hasRenderedFirstFrame} " +
-            "error=$error before=$before after=$pos playing=${engine.isPlaying} nonSilent=${engine.decodedNonSilentSamples} " +
-            engine.decoderSummary.replace('\n', '|'))
-        index++
-        handler.postDelayed({ nextSample() }, 500)
+        later(5000) {
+            checkResult("initial", error == 0 && engine.hasRenderedFirstFrame &&
+                engine.decodedNonSilentSamples > 0 && engine.currentPosition > 500,
+                "error=$error position=${engine.currentPosition} tracks=${engine.audioTrackCount()} " +
+                    "pcm=${engine.decodedNonSilentSamples} ${engine.decoderSummary.replace('\n', '|')}")
+            engine.pause()
+            positionBeforePause = engine.currentPosition
+            later(700) {
+                checkResult("pause", kotlin.math.abs(engine.currentPosition - positionBeforePause) < 100)
+                seekTarget = minOf(60000, (decodedDurations[samples[index].name] ?: engine.duration) / 3)
+                framesBeforeSeek = engine.renderedVideoFrames
+                engine.seekTo(seekTarget)
+                engine.start()
+                later(2500) {
+                    checkResult("seek", error == 0 && engine.currentPosition in seekTarget..(seekTarget + 5000) && engine.renderedVideoFrames > framesBeforeSeek,
+                        "target=$seekTarget actual=${engine.currentPosition}")
+                    pcmBeforeSwitch = engine.decodedNonSilentSamples
+                    checkResult("select-second-track", engine.selectAudioTrack(false) == (engine.audioTrackCount() >= 2))
+                    engine.setTone(3)
+                    engine.selectAudioChannel(AudioChannels.AUDIO_CHANNEL_LEFT, 0.5f)
+                    later(1800) {
+                        checkResult("audio-switch-and-pitch", error == 0 && engine.decodedNonSilentSamples > pcmBeforeSwitch)
+                        engine.setTone(-3)
+                        val replacement = KtvVideoView(this)
+                        root.removeView(view)
+                        root.addView(replacement, 0, LinearLayout.LayoutParams(-1, 0, 1f))
+                        view = replacement
+                        engine.attach(view)
+                        val before = engine.currentPosition
+                        later(1000) {
+                            checkResult("surface-transfer", error == 0 && (engine.currentPosition > before || complete))
+                            engine.setTone(0)
+                            engine.seekTo(((decodedDurations[samples[index].name] ?: engine.duration) - 1700).coerceAtLeast(0))
+                            engine.start()
+                            complete = false
+                            later(4500) {
+                                checkResult("completion", error == 0 && complete, "error=$error position=${engine.currentPosition}")
+                                record("RESULT file=${samples[index].name} pass=${!sampleFailed}")
+                                index++
+                                later(200) { nextSample() }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
     override fun onDestroy() {
+        destroyed = true
         handler.removeCallbacksAndMessages(null)
         engine.release()
         super.onDestroy()
     }
+}
+
+internal object FfmpegValidation {
+    init { System.loadLibrary("ktvffmpeg") }
+    external fun checkFile(path: String): String
 }
