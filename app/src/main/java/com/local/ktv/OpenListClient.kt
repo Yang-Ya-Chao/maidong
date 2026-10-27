@@ -66,6 +66,21 @@ class OpenListClient(private val config: OpenListConfig) {
         }
     }
 
+    /** 仅删除配置目录内的一首媒体文件，不允许递归删除目录。 */
+    fun remove(path: String) {
+        val target = OpenListPaths.normalize(path)
+        val root = OpenListPaths.normalize(config.root)
+        require(target == path && target != root && OpenListPaths.within(target, root)) {
+            "删除路径超出歌曲目录"
+        }
+        val name = target.substringAfterLast('/')
+        require(OpenListPaths.media(name)) { "只能删除歌曲文件" }
+        val file = request("get", JSONObject().put("path", target).put("password", config.password))
+        check(!file.optBoolean("is_dir", true)) { "不能删除歌曲目录" }
+        request("remove", JSONObject().put("dir", OpenListPaths.parent(target, root))
+            .put("names", org.json.JSONArray().put(name)), expectData = false)
+    }
+
     fun resolve(path: String): String {
         val data = request("get", JSONObject().put("path", path).put("password", config.password))
         check(!data.optBoolean("is_dir")) { "请选择歌曲文件" }
@@ -78,7 +93,7 @@ class OpenListClient(private val config: OpenListConfig) {
         return resolved.toExternalForm()
     }
 
-    private fun request(action: String, body: JSONObject): JSONObject {
+    private fun request(action: String, body: JSONObject, expectData: Boolean = true): JSONObject {
         val connection = URL(config.server + "/api/fs/" + action).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = "POST"
@@ -115,7 +130,7 @@ class OpenListClient(private val config: OpenListConfig) {
                     else -> "OpenList 操作失败，请检查服务与网盘挂载状态"
                 }
             }
-            return payload.getJSONObject("data")
+            return if (expectData) payload.getJSONObject("data") else JSONObject()
         } finally {
             connection.disconnect()
         }

@@ -35,6 +35,11 @@ class SongLibrary {
         cloudSongs.add(saved)
         cloudCatalog.save(config, cloudSongs)
     }
+    @Synchronized fun forgetOpenList(config: OpenListConfig, path: String) {
+        cloudCatalog.remove(config, path)
+        cloudSongs.removeAll { it.openListServer == config.server && it.openListPath == path }
+    }
+
     @JvmField val muse = IgebaCatalog()
 
     fun ensureDirs() {

@@ -155,6 +155,106 @@ class OpenListSupportTest {
         } finally { file.delete() }
     }
 
+    @Test fun remoteDeleteUsesExactDirectoryAndNameAndAcceptsNullData() {
+        val removed = AtomicInteger()
+        val target = "/KTV/国语/歌手-歌曲 #1.mp4"
+        val server = LocalServer { request ->
+            assertEquals("POST", request.method)
+            assertEquals("test-token", request.headers["authorization"])
+            val body = JSONObject(request.body)
+            when (request.path) {
+                "/api/fs/get" -> {
+                    assertEquals(target, body.getString("path"))
+                    assertEquals("目录密码", body.getString("password"))
+                    Response(body = """{"code":200,"data":{"is_dir":false}}""")
+                }
+                "/api/fs/remove" -> {
+                    assertEquals("/KTV/国语", body.getString("dir"))
+                    assertEquals(1, body.getJSONArray("names").length())
+                    assertEquals("歌手-歌曲 #1.mp4", body.getJSONArray("names").getString(0))
+                    removed.incrementAndGet()
+                    Response(body = """{"code":200,"data":null}""")
+                }
+                else -> error("意外请求")
+            }
+        }
+        try {
+            OpenListClient(OpenListConfig(server.url, "test-token", "/KTV", "目录密码")).remove(target)
+            assertEquals(1, removed.get())
+        } finally { server.close() }
+    }
+
+    @Test fun remoteDeleteRejectsRootTraversalOutsidePathsAndDirectories() {
+        val requests = AtomicInteger()
+        val server = LocalServer { request ->
+            requests.incrementAndGet()
+            assertEquals("/api/fs/get", request.path)
+            Response(body = """{"code":200,"data":{"is_dir":true}}""")
+        }
+        try {
+            val client = OpenListClient(OpenListConfig(server.url, root = "/KTV"))
+            listOf("/KTV", "/KTV-other/歌.mp4", "/KTV/../歌.mp4", "/KTV//歌.mp4", "/KTV/说明.txt").forEach {
+                assertThrows(IllegalArgumentException::class.java) { client.remove(it) }
+            }
+            assertEquals(0, requests.get())
+            assertThrows(IllegalStateException::class.java) { client.remove("/KTV/目录.mp4") }
+            assertEquals(1, requests.get())
+        } finally { server.close() }
+    }
+
+    @Test fun remoteDeleteFailureDoesNotErasePersistentIndex() {
+        val file = java.io.File.createTempFile("openlist-delete", ".json")
+        var fail = true
+        val server = LocalServer { request ->
+            if (request.path == "/api/fs/get") Response(body = """{"code":200,"data":{"is_dir":false}}""")
+            else if (fail) Response(body = """{"code":403,"message":"private-token","data":null}""")
+            else Response(status = 500)
+        }
+        try {
+            val config = OpenListConfig(server.url, "test-token", "/KTV")
+            val entry = song("/KTV/歌.mp4").apply { openListServer = server.url }
+            val catalog = OpenListCatalog(file)
+            catalog.save(config, listOf(entry))
+            repeat(2) {
+                val error = assertThrows(IllegalStateException::class.java) {
+                    OpenListClient(config).remove(entry.openListPath!!)
+                    catalog.remove(config, entry.openListPath!!)
+                }
+                assertFalse(error.message.orEmpty().contains("private-token"))
+                assertEquals(entry.openListPath, OpenListCatalog(file).cached(config).single().openListPath)
+                fail = false
+            }
+        } finally { server.close(); file.delete() }
+    }
+
+    @Test fun deletedRemoteIndexStaysRemovedAfterRestartAndKeepsOtherCopies() {
+        val file = java.io.File.createTempFile("openlist-delete", ".json")
+        try {
+            val config = OpenListConfig("https://a.example", root = "/KTV")
+            val first = song("/KTV/one/歌.mp4")
+            val second = song("/KTV/two/歌.mp4")
+            val catalog = OpenListCatalog(file)
+            catalog.save(config, listOf(first, second))
+            catalog.remove(config, first.openListPath!!)
+            assertEquals(second.openListPath, OpenListCatalog(file).cached(config).single().openListPath)
+            catalog.remove(config, first.openListPath!!)
+            assertEquals(1, catalog.cached(config).size)
+        } finally { file.delete() }
+    }
+
+    @Test fun oldDeleteDoesNotOverwriteNewServerIndex() {
+        val file = java.io.File.createTempFile("openlist-switch", ".json")
+        try {
+            val old = OpenListConfig("https://a.example", root = "/KTV")
+            val current = OpenListConfig("https://b.example", root = "/other")
+            val entry = song("/other/歌.mp4").apply { openListServer = current.server }
+            val catalog = OpenListCatalog(file)
+            catalog.save(current, listOf(entry))
+            catalog.remove(old, "/KTV/歌.mp4")
+            assertEquals(entry.openListPath, catalog.cached(current).single().openListPath)
+        } finally { file.delete() }
+    }
+
     private fun song(path: String) = Song().apply {
         openListServer = "https://a.example"
         openListPath = path

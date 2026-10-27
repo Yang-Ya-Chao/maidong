@@ -5449,7 +5449,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showSongActions(song: Song) {
-        val hasLocalFile = hasValidLocalSongFile(song)
+        val hasLocalFile = song.hasLocalFile() || SongOkDownloadManager.isDownloaded(song)
         val isFavorite = store.isFavorite(song)
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -5507,9 +5507,14 @@ class MainActivity : AppCompatActivity() {
         actions.addView(action(R.drawable.ott_ic_download, "保存到") {
             showSaveSongDialog(song)
         }, LinearLayout.LayoutParams(0, -2, 1f))
-        if (hasLocalFile && song.hasLocalFile()) {
-            actions.addView(action(R.drawable.ott_ic_delete, "删除文件") {
+        if (hasLocalFile) {
+            actions.addView(action(R.drawable.ott_ic_delete, "删除本地文件") {
                 confirmDeleteLocalFile(song)
+            }, LinearLayout.LayoutParams(0, -2, 1f))
+        }
+        if (song.isOpenList()) {
+            actions.addView(action(R.drawable.ott_ic_delete, "删除远端文件") {
+                confirmDeleteOpenListFile(song)
             }, LinearLayout.LayoutParams(0, -2, 1f))
         }
         panel.addView(actions, LinearLayout.LayoutParams(-1, -2))
@@ -5543,6 +5548,62 @@ class MainActivity : AppCompatActivity() {
             .setMessage("确定删除 ${song.title} 的本地文件吗？歌曲仍保留在曲库中。")
             .setNegativeButton("取消", null)
             .setPositiveButton("确定") { _, _ -> deleteDownloadedSong(song) }
+            .create().showForTv()
+    }
+
+    private fun confirmDeleteOpenListFile(song: Song) {
+        val config = openListBrowser.config()
+        val path = song.openListPath ?: return
+        if (config.server.isBlank() || config.server != song.openListServer) {
+            toast("请先连接此歌曲所属的 OpenList 服务")
+            return
+        }
+        AlertDialog.Builder(this)
+            .setTitle("删除远端文件")
+            .setMessage("确定删除《${song.title}》的 OpenList/NAS 原文件吗？\n位置：$path\n本地副本不会删除，其他设备也将无法访问这个远端文件。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                if (currentSong?.let { it.openListServer == config.server && it.openListPath == path } == true) {
+                    toast("正在播放的歌曲不能删除")
+                    return@setPositiveButton
+                }
+                busy(true, "正在删除远端文件...")
+                io.execute {
+                    val result = runCatching { OpenListClient(config).remove(path) }
+                    val indexUpdated = result.isSuccess && runCatching {
+                        library.forgetOpenList(config, path)
+                    }.isSuccess
+                    main.post {
+                        busy(false, "")
+                        result.onSuccess {
+                            // 只清除这个远端位置的引用，保留本地副本及在线曲库入口。
+                            val matches: (Song) -> Boolean = {
+                                it.openListServer == config.server && it.openListPath == path
+                            }
+                            orderQueue?.removeAll { matches(it) && !it.hasLocalFile() }
+                            sangHistory.removeAll { matches(it) && !it.hasLocalFile() }
+                            val removedDownloads = downloads.filter { matches(it.song) && !it.song.hasLocalFile() }
+                            downloads.removeAll(removedDownloads.toSet())
+                            stateIo.execute {
+                                removedDownloads.forEach { stateDatabase.removeDownload(it.song) }
+                            }
+                            if (song.id?.startsWith("openlist:") == true && !song.hasLocalFile()) {
+                                store.favoriteIds.remove(stableId(song))
+                                store.playlistSongs.values.forEach { it.remove(stableId(song)) }
+                            }
+                            saveState()
+                            refreshLibrary {
+                                reloadCurrentBrowsePage()
+                                renderQueue()
+                                toast(if (indexUpdated) "远端文件已删除"
+                                    else "远端文件已删除，索引更新失败，请重新扫描网盘")
+                            }
+                        }.onFailure {
+                            toast(it.message ?: "远端删除失败，请检查连接和删除权限")
+                        }
+                    }
+                }
+            }
             .create().showForTv()
     }
 

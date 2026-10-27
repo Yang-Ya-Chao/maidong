@@ -69,6 +69,21 @@ internal class OpenListCatalog(private val cacheFile: File? = null) {
             song
         }
 
+    @Synchronized fun remove(config: OpenListConfig, path: String): List<Song> {
+        // 删除请求期间可能已切换服务；不能覆盖新服务的索引。
+        if (cache.exists()) {
+            val current = JSONObject(cache.readText())
+            if (current.optString("server") != config.server || current.optString("root") != config.root) {
+                return emptyList()
+            }
+        }
+        val remaining = cached(config).filterNot {
+            it.openListServer == config.server && it.openListPath == path
+        }
+        save(config, remaining)
+        return remaining
+    }
+
     @Synchronized fun save(config: OpenListConfig, songs: List<Song>) {
         val rows = JSONArray().apply { songs.forEach { song ->
             put(Song.fromJson(song.toJson()).apply {
