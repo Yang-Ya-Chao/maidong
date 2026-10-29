@@ -485,6 +485,7 @@ class MainActivity : AppCompatActivity() {
                 if (playWhenPrepared) startVocalIfReady() else pauseVocalIfReady()
             }
         }
+        SongOkDownloadManager.orderSnapshot = { store.orderQueue.mapNotNull { it.sourceSongNumber } }
         SongOkDownloadManager.reclaimCache = { choice, requiredAvailable ->
             purgeColdDownloadedFiles(choice, requiredAvailable)
         }
@@ -643,6 +644,7 @@ class MainActivity : AppCompatActivity() {
         releaseVocalPlayer()
         if (::playbackEngine.isInitialized) playbackEngine.release()
         remoteServer.stop()
+        SongOkDownloadManager.orderSnapshot = null
         SongOkDownloadManager.reclaimCache = null
         library.muse.close()
         stateIo.shutdown()
@@ -3528,6 +3530,9 @@ class MainActivity : AppCompatActivity() {
         if (id.isEmpty()) return remoteError(400, "MISSING_SONG_ID", "缺少歌曲 ID")
         val song = remoteSongCache[id] ?: library.allSongs().firstOrNull { stableId(it) == id }
             ?: return remoteError(404, "SONG_NOT_FOUND", "歌曲不存在或搜索结果已过期")
+        if (!isSongReadyForQueue(song) && !song.isOpenList() && song.sourceSongNumber != null && IgebaAccount.session == null) {
+            return remoteError(401, "IGEBA_LOGIN_REQUIRED", "请先在麦动中登录 i歌霸账号")
+        }
         if (orderQueue?.any { stableId(it) == id } == true) {
             return remoteError(409, "ALREADY_QUEUED", "歌曲已在已点列表中")
         }
@@ -4712,6 +4717,12 @@ class MainActivity : AppCompatActivity() {
      * 使用 SongOkDownloadManager 下载歌曲到本地。
      */
     private fun downloadSong(song: Song, extraCallback: DownloadCallback? = null, storageChecked: Boolean = false) {
+        if (!song.isOpenList() && song.sourceSongNumber != null && IgebaAccount.session == null) {
+            toast("请先登录 i歌霸账号")
+            IgebaAccountDialog.show(this) { refreshSongAdapter() }
+            extraCallback?.onDownloadFailed(song, "请先登录 i歌霸账号")
+            return
+        }
         main.removeCallbacks(downloadStatusTicker)
         main.post(downloadStatusTicker)
         val openList = openListBrowser.config()
@@ -7976,6 +7987,9 @@ class MainActivity : AppCompatActivity() {
         browsePagination?.visibility = View.GONE
 
         val entries = listOf(
+            SettingsEntry(R.drawable.ott_ic_about_us, "i歌霸账号", IgebaAccount.session?.let { "已登录：${it.nickname}" } ?: "登录或注册自己的账号", "设置") {
+                IgebaAccountDialog.show(this) { showSettingsPage(false) }
+            },
             SettingsEntry(R.drawable.ott_ic_data_setting, "数据设置", "数据库、歌曲下载、歌曲文件相关设置") { showSettingsSection(1) },
             SettingsEntry(R.drawable.ott_ic_play, "播放设置", "播放器、视频窗口相关设置") { showSettingsSection(2) },
             SettingsEntry(R.drawable.ott_ic_sound, "声音设置") { showSoundSettingsDialog() },
@@ -9477,6 +9491,11 @@ class MainActivity : AppCompatActivity() {
      * 添加歌曲到已点列表
      */
     private fun addToQueue(song: Song) {
+        if (!isSongReadyForQueue(song) && !song.isOpenList() && song.sourceSongNumber != null && IgebaAccount.session == null) {
+            toast("请先登录 i歌霸账号")
+            IgebaAccountDialog.show(this) { refreshSongAdapter() }
+            return
+        }
         if (orderQueue!!.contains(song)) {
             toast("已在列表中: " + song.title)
             return

@@ -7,6 +7,7 @@ class KtvApplication : Application() {
     override fun onCreate() {
         super.onCreate()
         instanceRef = this
+        IgebaAccount.initialize(this)
         PersonalMediaStore.init(this)
         CatalogAssets.init(this)
         Log.i(TAG, "KTV application initialized without native services")
