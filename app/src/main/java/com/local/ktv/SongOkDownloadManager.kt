@@ -398,10 +398,10 @@ object SongOkDownloadManager {
         val number=song.sourceSongNumber ?: throw IOException("该条目没有新歌源编号，无法下载")
         val attemptStopped = AtomicBoolean(false)
         synchronized(job) { job.inFlight.clear() }
-        val userId = IgebaAccount.session?.userId ?: throw IOException("请先登录 i歌霸账号")
+        val downloadSession = IgebaAccount.session ?: throw IOException("请先登录 i歌霸账号")
+        val userId = downloadSession.userId
         var address=IgebaApiClient.address(number, userId)
         val addressLock = Any()
-        var addressRefreshes=0
         var exclusive=false
         var mediaTotal: Long? = null
         fun probe(): Block {
@@ -415,24 +415,33 @@ object SongOkDownloadManager {
             mediaTotal=result.total
             return result
         }
-        fun refresh(error: MediaHttpException) {
-            if(error.code != 403 || !error.detail.contains("expired",true) || addressRefreshes >= 2) throw error
-            if(job.cancelled.get()) throw IOException("下载已暂停")
-            addressRefreshes++
-            if (addressRefreshes == 1) {
-                val snapshot = java.util.concurrent.FutureTask {
-                    orderSnapshot?.invoke().orEmpty()
-                        .filter { it.matches(Regex("\\d{1,16}")) }.toMutableList()
-                }
-                android.os.Handler(android.os.Looper.getMainLooper()).post(snapshot)
-                val orders = snapshot.get(5, java.util.concurrent.TimeUnit.SECONDS)
-                if (number !in orders) orders.add(number)
-                IgebaApiClient.post("NOTIFY_MYORDER", JSONObject()
-                    .put("UserId", userId).put("Action", 1)
-                    .put("SongNumbers", number).put("Orders", orders.joinToString(",")), true)
+        fun notifyOrder() {
+            val snapshot = java.util.concurrent.FutureTask {
+                orderSnapshot?.invoke().orEmpty()
+                    .filter { it.matches(Regex("\\d{1,16}")) }.toMutableList()
             }
-            android.util.Log.i("SongOkDownload", "过期地址刷新，歌曲=$number 次数=$addressRefreshes/2")
-            address=IgebaApiClient.address(number, userId)
+            android.os.Handler(android.os.Looper.getMainLooper()).post(snapshot)
+            val orders = snapshot.get(5, java.util.concurrent.TimeUnit.SECONDS)
+            if (number !in orders) orders.add(number)
+            IgebaApiClient.post("NOTIFY_MYORDER", JSONObject()
+                .put("UserId", userId).put("Action", 1)
+                .put("SongNumbers", number).put("Orders", orders.joinToString(",")), true)
+        }
+        val recovery = IgebaDownloadRecovery(
+            notifyOrder = { notifyOrder() },
+            refreshAddress = {
+                check(IgebaAccount.session?.userId == userId) { "账号已变更，请重试下载" }
+                address = IgebaApiClient.address(number, userId)
+            },
+            relogin = {
+                if (job.cancelled.get()) throw IOException("下载已暂停")
+                IgebaAccount.relogin(downloadSession)
+                android.util.Log.i("SongOkDownload", "已恢复当前账号登录，重新获取歌曲地址")
+            },
+        )
+        fun refresh(error: MediaHttpException) {
+            if (job.cancelled.get()) throw IOException("下载已暂停")
+            if (!recovery.recover(error.code, error.detail)) throw error
         }
         fun retryExpired(request: () -> Block): Block {
             while (true) {

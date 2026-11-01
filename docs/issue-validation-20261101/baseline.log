@@ -1,0 +1,9 @@
+Baseline process 3454, emulator 127.0.0.1:62001, 2026-11-01.
+All 8 full-file native decode checks passed.
+All 80 production playback checks passed (10 per sample).
+Samples: aac-sbr.mkv, h264-aac-dual.mkv, h264-ac3.mkv, h264-eac3.mkv,
+h264-mp1-dual.mkv, h264-mp3.mkv, rv40-aac-dual.mkv, vorbis-multiaudio.mkv.
+Each sample: initial, pause, seek, replay-zero, paused-rapid-seek-zero,
+resume-after-replay, select-second-track, audio-switch-and-pitch,
+surface-transfer, completion.
+20:52:23.956 DONE samples=8 failures=0

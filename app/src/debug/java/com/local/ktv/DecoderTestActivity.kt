@@ -23,6 +23,7 @@ class DecoderTestActivity : Activity() {
     private val report = StringBuilder()
     private val sampleNames = setOf("rv40-aac-dual.mkv", "h264-mp1-dual.mkv", "h264-aac-dual.mkv", "aac-sbr.mkv", "h264-ac3.mkv", "h264-eac3.mkv", "h264-mp3.mkv", "vorbis-multiaudio.mkv")
     private var samples = emptyList<File>()
+    private val expectedFrameRates = java.util.concurrent.ConcurrentHashMap<String, Double>()
     private val decodedDurations = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private var index = 0
     private var error = 0
@@ -38,6 +39,9 @@ class DecoderTestActivity : Activity() {
 
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
+        if (android.os.Build.VERSION.SDK_INT >= 23 && checkSelfPermission(android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 71)
+        }
         root = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setBackgroundColor(-16777216) }
         status = TextView(this).apply { textSize = 16f; setTextColor(-1) }
         view = KtvVideoView(this)
@@ -63,6 +67,7 @@ class DecoderTestActivity : Activity() {
                     val nativeResult = FfmpegValidation.checkFile(sample.path)
                     val result = JSONObject(nativeResult)
                     decodedDurations[sample.name] = result.getLong("decodedDurationMs").toInt()
+                    expectedFrameRates[sample.name] = result.getLong("videoFrames") * 1000.0 / result.getLong("decodedDurationMs").coerceAtLeast(1)
                     val passed = result.getInt("errors") == 0 &&
                         result.getLong("videoFrames") > 0 && result.getLong("audioSamples") > 0 &&
                         result.getInt("audioTracks") > 0
@@ -70,6 +75,9 @@ class DecoderTestActivity : Activity() {
                         if (!passed) failures++
                         record("FULL file=${sample.name} pass=$passed $nativeResult")
                     }
+                }
+                LocalOpenListValidation.run(samples.first { it.name == "aac-sbr.mkv" }) { line ->
+                    handler.post { record(line) }
                 }
                 handler.post { nextSample() }
             } catch (failure: Throwable) {
@@ -107,9 +115,14 @@ class DecoderTestActivity : Activity() {
         record("START file=${samples[index].name}")
         later(5000) {
             checkResult("initial", error == 0 && engine.hasRenderedFirstFrame &&
-                engine.decodedNonSilentSamples > 0 && engine.currentPosition > 500,
+                engine.decodedNonSilentSamples > 0 && engine.currentPosition > 500 && engine.renderedVideoFrames >= 20,
                 "error=$error position=${engine.currentPosition} tracks=${engine.audioTrackCount()} " +
-                    "pcm=${engine.decodedNonSilentSamples} ${engine.decoderSummary.replace('\n', '|')}")
+                    "frames=${engine.renderedVideoFrames} pcm=${engine.decodedNonSilentSamples} ${engine.decoderSummary.replace('\n', '|')}")
+            val expected = expectedFrameRates[samples[index].name] ?: 0.0
+            val observed = engine.renderedVideoFrames * 1000.0 / engine.currentPosition.coerceAtLeast(1)
+            checkResult("playback-cadence", observed >= expected * 0.7 &&
+                kotlin.math.abs(engine.renderedVideoPosition - engine.currentPosition) <= 250,
+                "expectedFps=$expected observedFps=$observed audio=${engine.currentPosition} video=${engine.renderedVideoPosition}")
             engine.pause()
             positionBeforePause = engine.currentPosition
             later(700) {
@@ -119,32 +132,34 @@ class DecoderTestActivity : Activity() {
                 engine.seekTo(seekTarget)
                 engine.start()
                 later(2500) {
-                    checkResult("seek", error == 0 && engine.currentPosition in seekTarget..(seekTarget + 5000) && engine.renderedVideoFrames > framesBeforeSeek,
-                        "target=$seekTarget actual=${engine.currentPosition}")
-                    pcmBeforeSwitch = engine.decodedNonSilentSamples
-                    checkResult("select-second-track", engine.selectAudioTrack(false) == (engine.audioTrackCount() >= 2))
-                    engine.setTone(3)
-                    engine.selectAudioChannel(AudioChannels.AUDIO_CHANNEL_LEFT, 0.5f)
-                    later(1800) {
-                        checkResult("audio-switch-and-pitch", error == 0 && engine.decodedNonSilentSamples > pcmBeforeSwitch)
-                        engine.setTone(-3)
-                        val replacement = KtvVideoView(this)
-                        root.removeView(view)
-                        root.addView(replacement, 0, LinearLayout.LayoutParams(-1, 0, 1f))
-                        view = replacement
-                        engine.attach(view)
-                        val before = engine.currentPosition
-                        later(1000) {
-                            checkResult("surface-transfer", error == 0 && (engine.currentPosition > before || complete))
-                            engine.setTone(0)
-                            engine.seekTo(((decodedDurations[samples[index].name] ?: engine.duration) - 1700).coerceAtLeast(0))
-                            engine.start()
-                            complete = false
-                            later(4500) {
-                                checkResult("completion", error == 0 && complete, "error=$error position=${engine.currentPosition}")
-                                record("RESULT file=${samples[index].name} pass=${!sampleFailed}")
-                                index++
-                                later(200) { nextSample() }
+                    checkResult("seek", error == 0 && engine.currentPosition in seekTarget..(seekTarget + 5000) && engine.renderedVideoFrames > framesBeforeSeek && kotlin.math.abs(engine.renderedVideoPosition - engine.currentPosition) <= 250,
+                        "target=$seekTarget actual=${engine.currentPosition} video=${engine.renderedVideoPosition}")
+                    verifyReplay {
+                        pcmBeforeSwitch = engine.decodedNonSilentSamples
+                        checkResult("select-second-track", engine.selectAudioTrack(false) == (engine.audioTrackCount() >= 2))
+                        engine.setTone(3)
+                        engine.selectAudioChannel(AudioChannels.AUDIO_CHANNEL_LEFT, 0.5f)
+                        later(1800) {
+                            checkResult("audio-switch-and-pitch", error == 0 && engine.decodedNonSilentSamples > pcmBeforeSwitch)
+                            engine.setTone(-3)
+                            val replacement = KtvVideoView(this)
+                            root.removeView(view)
+                            root.addView(replacement, 0, LinearLayout.LayoutParams(-1, 0, 1f))
+                            view = replacement
+                            engine.attach(view)
+                            val before = engine.currentPosition
+                            later(1000) {
+                                checkResult("surface-transfer", error == 0 && (engine.currentPosition > before || complete))
+                                engine.setTone(0)
+                                engine.seekTo(((decodedDurations[samples[index].name] ?: engine.duration) - 1700).coerceAtLeast(0))
+                                engine.start()
+                                complete = false
+                                later(4500) {
+                                    checkResult("completion", error == 0 && complete, "error=$error position=${engine.currentPosition}")
+                                    record("RESULT file=${samples[index].name} pass=${!sampleFailed}")
+                                    index++
+                                    later(200) { nextSample() }
+                                }
                             }
                         }
                     }
@@ -152,6 +167,30 @@ class DecoderTestActivity : Activity() {
             }
         }
     }
+
+    private fun verifyReplay(next: () -> Unit) {
+        val beforeReplay = engine.renderedVideoFrames
+        engine.seekTo(0)
+        engine.start()
+        later(1200) {
+            checkResult("replay-zero", error == 0 && engine.currentPosition in 100..2200 && engine.renderedVideoFrames > beforeReplay && kotlin.math.abs(engine.renderedVideoPosition - engine.currentPosition) <= 250,
+                "actual=${engine.currentPosition}")
+            engine.pause()
+            engine.seekTo(seekTarget)
+            engine.seekTo(0)
+            later(400) {
+                checkResult("paused-rapid-seek-zero", error == 0 && engine.currentPosition in 0..100,
+                    "actual=${engine.currentPosition}")
+                engine.start()
+                later(1000) {
+                    checkResult("resume-after-replay", error == 0 && engine.currentPosition in 100..2000,
+                        "actual=${engine.currentPosition}")
+                    next()
+                }
+            }
+        }
+    }
+
     override fun onDestroy() {
         destroyed = true
         handler.removeCallbacksAndMessages(null)

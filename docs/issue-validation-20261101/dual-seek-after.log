@@ -1,0 +1,6 @@
+11-01 21:08:51.513  4752  4752 I DualSeekRegression: audible-alternate-forward pass=true requested=60000 video=61244 alternateAudio=61244 drift=0
+11-01 21:08:52.723  4752  4752 I DualSeekRegression: audible-alternate-backward pass=true requested=12000 video=13138 alternateAudio=13138 drift=0
+11-01 21:08:53.925  4752  4752 I DualSeekRegression: audible-alternate-replay pass=true requested=0 video=1194 alternateAudio=1194 drift=0
+11-01 21:08:55.189  4752  4752 I DualSeekRegression: main-audible-muted-alternate-seek pass=true requested=45000 video=46149 alternateAudio=46149 drift=0
+11-01 21:08:56.411  4752  4752 I DualSeekRegression: switch-after-seek pass=true requested=45000 video=47387 alternateAudio=47387 drift=0
+11-01 21:08:56.411  4752  4752 I DualSeekRegression: DONE failures=0

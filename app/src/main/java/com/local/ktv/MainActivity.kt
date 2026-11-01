@@ -2284,7 +2284,7 @@ class MainActivity : AppCompatActivity() {
                     val position = seekBar?.progress ?: 0
                     runCatching {
                         player?.seekTo(position)
-                        prepareExternalVocal(currentSong, position)
+                        prepareExternalVocal(currentSong, position, forceSeek = true)
                     }
                     fullScreenSeeking = false
                     updateLyricView()
@@ -4383,6 +4383,7 @@ class MainActivity : AppCompatActivity() {
         try {
             if (player != null && currentSong != null) {
                 player!!.seekTo(max(0, positionMs))
+                prepareExternalVocal(currentSong, max(0, positionMs), forceSeek = true)
                 player!!.start()
                 startVocalIfReady()
                 updateBottomBar(currentSong, true)
@@ -4637,7 +4638,7 @@ class MainActivity : AppCompatActivity() {
             currentMediaPlayer = mp
             applyPlaybackMode()
             if (startPositionMs > 0) player!!.seekTo(startPositionMs)
-            prepareExternalVocal(song, startPositionMs)
+            prepareExternalVocal(song, startPositionMs, forceSeek = true)
             if (playWhenPrepared) {
                 player!!.start()
                 startVocalIfReady()
@@ -4894,7 +4895,7 @@ class MainActivity : AppCompatActivity() {
         if (fromCompletion && loopOne && player != null && currentSong != null) {
             playWhenPrepared = true
             player!!.seekTo(0)
-            prepareExternalVocal(currentSong, 0)
+            prepareExternalVocal(currentSong, 0, forceSeek = true)
             player!!.start()
             startVocalIfReady()
             return
@@ -5014,7 +5015,7 @@ class MainActivity : AppCompatActivity() {
         suppressCompletionUntil = System.currentTimeMillis() + 1500L
         player!!.seekTo(0)
         updateLyricView()
-        prepareExternalVocal(currentSong, 0)
+        prepareExternalVocal(currentSong, 0, forceSeek = true)
         player!!.start()
         startVocalIfReady()
         hidePlaybackNoticeNow()
@@ -5130,14 +5131,15 @@ class MainActivity : AppCompatActivity() {
         return floatArrayOf(volume, volume)
     }
 
-    private fun prepareExternalVocal(song: Song?, positionMs: Int): Boolean {
+    private fun prepareExternalVocal(song: Song?, positionMs: Int, forceSeek: Boolean = false): Boolean {
         val path = selectedVocalPath(song)
         if (!hasUrl(path)) {
             if (embeddedDualTrackMode && embeddedVocalEngine != null) {
                 pendingVocalPosition = adjustedAudioPosition(positionMs)
                 if (vocalPlayerPrepared) runCatching {
                     val drift = kotlin.math.abs(embeddedVocalEngine!!.currentPosition - pendingVocalPosition)
-                    if (drift > 300 && originalVocal == embeddedMainTrackOriginal) {
+                    // User seeks must move both decoders, including the currently audible one.
+                    if (forceSeek || drift > 300 && originalVocal == embeddedMainTrackOriginal) {
                         embeddedVocalEngine!!.seekTo(pendingVocalPosition)
                     }
                 }

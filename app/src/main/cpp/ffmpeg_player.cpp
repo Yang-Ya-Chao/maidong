@@ -92,7 +92,7 @@ struct Player {
         jclass c = e->GetObjectClass(object);
         prepared = e->GetMethodID(c, "onNativePrepared", "(JIIILjava/lang/String;Ljava/lang/String;)V");
         failure = e->GetMethodID(c, "onNativeError", "(ILjava/lang/String;)V");
-        firstFrame = e->GetMethodID(c, "onNativeFrame", "()V");
+        firstFrame = e->GetMethodID(c, "onNativeFrame", "(J)V");
         pcm = e->GetMethodID(c, "onNativePcm", "(Ljava/nio/ByteBuffer;IJI)Z");
         audioReset = e->GetMethodID(c, "onNativeAudioReset", "(IJ)V");
         audioEnd = e->GetMethodID(c, "onNativeAudioEnd", "()V");
@@ -125,7 +125,7 @@ struct Player {
         env.e->CallVoidMethod(owner, failure, code, text);
         env.e->DeleteLocalRef(text); checkJava(env.e); cancel();
     }
-    bool active(int generation) { return !stop && serial == generation; }
+    bool active(int generation) { return !stop && serial == generation && command == applied; }
     bool waitPlaying(int generation) {
         while (active(generation) && !playing) av_usleep(5000);
         return active(generation);
@@ -249,10 +249,14 @@ struct Player {
             if (command != version) {
                 int64_t target, nextVersion;
                 { std::lock_guard<std::mutex> lock(control); target = seekTarget; selected = requestedAudio; nextVersion = command; }
-                int result = avformat_seek_file(format, -1, INT64_MIN, target * 1000 + originUs, INT64_MAX, AVSEEK_FLAG_BACKWARD);
+                // avformat_seek_file ignores AVSEEK_FLAG_BACKWARD. Bound max_ts so
+                // decoding starts before the target, then discard decoder preroll.
+                const int64_t timestamp = target * 1000 + originUs;
+                int result = avformat_seek_file(format, -1, INT64_MIN, timestamp, timestamp, 0);
                 if (result < 0) { fail(2000, "Seek: " + errorText(result)); break; }
-                version = nextVersion; applied = version;
+                version = nextVersion;
                 int generation = ++serial;
+                applied = version;
                 int track = audioTracks.empty() ? -1 : audioTracks[std::min<int>(selected, audioTracks.size() - 1)];
                 audioQueue.reset({nullptr, generation, true, false, track, target});
                 videoQueue.reset({nullptr, generation, true, false, videoTrack, target});
@@ -321,6 +325,7 @@ struct Player {
         Packet packet;
         while (pop(audioQueue, packet)) {
             if (packet.flush) {
+                if (!active(packet.serial)) continue;
                 generation = packet.serial; track = packet.track; target = nextPts = outputPts = packet.target;
                 freeGraph(); avcodec_free_context(&codec); codec = decoder(track);
                 if (!codec) break;
@@ -390,6 +395,7 @@ struct Player {
         Packet packet;
         while (pop(videoQueue, packet)) {
             if (packet.flush) {
+                if (!active(packet.serial)) continue;
                 avcodec_flush_buffers(codec); generation = packet.serial; target = nextPts = packet.target;
                 seekPreroll = target > 0; prerollErrors = 0; continue;
             }
@@ -424,7 +430,7 @@ struct Player {
                                 int strides[] = {buffer.stride * 4, 0, 0, 0};
                                 sws_scale(scaler, frame->data, frame->linesize, 0, frame->height, dst, strides);
                                 ANativeWindow_unlockAndPost(window);
-                                env.e->CallVoidMethod(owner, firstFrame); checkJava(env.e);
+                                env.e->CallVoidMethod(owner, firstFrame, static_cast<jlong>(timestamp)); checkJava(env.e);
                             } else ANativeWindow_unlockAndPost(window);
                         }
                     }

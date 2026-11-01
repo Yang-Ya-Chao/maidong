@@ -41,6 +41,8 @@ internal class NativeFfmpegSession(
     private var wallPosition = 0L
     private var wallAnchor = SystemClock.elapsedRealtime()
     private var positionFloor = 0L
+    @Volatile var renderedVideoPosition = -1L
+        private set
     @Volatile var nonSilentSamples = 0L
         private set
     @Volatile var leftGain = 1f
@@ -222,7 +224,9 @@ internal class NativeFfmpegSession(
         }
     }
 
-    fun onNativeFrame() { if (!cancelled) listener.firstFrame() }
+    fun onNativeFrame(position: Long) {
+        if (!cancelled) { renderedVideoPosition = position; listener.firstFrame() }
+    }
     fun onNativeComplete() {
         if (cancelled) return
         completed = true

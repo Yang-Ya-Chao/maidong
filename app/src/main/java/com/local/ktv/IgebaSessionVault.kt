@@ -17,10 +17,11 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 import javax.security.auth.x500.X500Principal
 
-/** Private, backup-excluded session storage; no passwords are accepted here. */
-internal class IgebaSessionVault(context: Context) {
+/** Private, backup-excluded session storage; credentials are stored only after explicit opt-in. */
+internal class IgebaSessionVault(context: Context,
+    sessionFile: File = File(context.noBackupFilesDir, "igeba-session.bin")) {
     private val context = context.applicationContext
-    private val file = AtomicFile(File(context.noBackupFilesDir, "igeba-session.bin"))
+    private val file = AtomicFile(sessionFile)
     private val alias = "maidong.igeba.session"
     private fun encode(bytes: ByteArray) = Base64.encodeToString(bytes, Base64.NO_WRAP)
     private fun decode(value: String) = Base64.decode(value, Base64.NO_WRAP)

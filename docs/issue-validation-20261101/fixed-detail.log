@@ -1,0 +1,118 @@
+11-01 20:58:40.108  4098  4098 I DecoderMatrix: FULL file=aac-sbr.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":1,"videoFrames":1194,"audioSamples":2406400,"decodedDurationMs":50132}
+11-01 20:58:40.167  4098  4098 I DecoderMatrix: FULL file=h264-aac-dual.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":2,"videoFrames":150,"audioSamples":579584,"decodedDurationMs":6016}
+11-01 20:58:40.709  4098  4098 I DecoderMatrix: FULL file=h264-ac3.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":1,"videoFrames":200,"audioSamples":402432,"decodedDurationMs":8378}
+11-01 20:58:47.210  4098  4098 I DecoderMatrix: FULL file=h264-eac3.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":1,"videoFrames":1251,"audioSamples":2504448,"decodedDurationMs":52181}
+11-01 20:59:14.963  4098  4098 I DecoderMatrix: FULL file=h264-mp1-dual.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":2,"videoFrames":6301,"audioSamples":24203520,"decodedDurationMs":252144}
+11-01 20:59:16.827  4098  4098 I DecoderMatrix: FULL file=h264-mp3.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":1,"videoFrames":300,"audioSamples":529920,"decodedDurationMs":12016}
+11-01 20:59:27.249  4098  4098 I DecoderMatrix: FULL file=rv40-aac-dual.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":2,"videoFrames":7140,"audioSamples":22994944,"decodedDurationMs":239645}
+11-01 20:59:28.275  4098  4098 I DecoderMatrix: FULL file=vorbis-multiaudio.mkv pass=true {"errors":0,"videoTracks":1,"audioTracks":4,"videoFrames":549,"audioSamples":4398336,"decodedDurationMs":22913}
+11-01 20:59:28.286  4098  4098 I DecoderMatrix: VAULT encrypted-reopen-and-clear pass=true
+11-01 20:59:28.312  4098  4098 I DecoderMatrix: NETWORK direct bytes=15728640 elapsedMs=25
+11-01 20:59:28.598  4098  4098 I DecoderMatrix: NETWORK mode=normal pass=true bytes=15728640 elapsedMs=167
+11-01 20:59:28.709  4098  4098 I DecoderMatrix: NETWORK mode=truncated pass=true bytes=15728640 elapsedMs=107
+11-01 20:59:29.184  4098  4098 I DecoderMatrix: NETWORK mode=cancel pass=true bytes=15728640 elapsedMs=473
+11-01 20:59:29.197  4098  4098 I DecoderMatrix: START file=aac-sbr.mkv
+11-01 20:59:34.206  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv initial pass=true error=0 position=5034 tracks=1 frames=121 pcm=439835 视频：FFmpeg / h264|音频：FFmpeg / aac|解析：FFmpeg
+11-01 20:59:34.209  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv playback-cadence pass=true expectedFps=23.81712279581904 observedFps=24.036551450139054 audio=5077 video=5005
+11-01 20:59:34.911  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv pause pass=true
+11-01 20:59:37.416  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv seek pass=true target=16710 actual=19184 video=19144
+11-01 20:59:38.622  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv replay-zero pass=true actual=1194
+11-01 20:59:39.029  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 20:59:40.034  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv resume-after-replay pass=true actual=981
+11-01 20:59:40.034  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv select-second-track pass=true
+11-01 20:59:41.837  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv audio-switch-and-pitch pass=true
+11-01 20:59:42.840  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv surface-transfer pass=true
+11-01 20:59:47.344  4098  4098 I DecoderMatrix: CHECK file=aac-sbr.mkv completion pass=true error=0 position=50142
+11-01 20:59:47.344  4098  4098 I DecoderMatrix: RESULT file=aac-sbr.mkv pass=true
+11-01 20:59:47.548  4098  4098 I DecoderMatrix: START file=h264-aac-dual.mkv
+11-01 20:59:52.558  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv initial pass=true error=0 position=4949 tracks=2 frames=124 pcm=495370 视频：FFmpeg / h264|音频：FFmpeg / aac|解析：FFmpeg
+11-01 20:59:52.559  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv playback-cadence pass=true expectedFps=24.93351063829787 observedFps=24.83974358974359 audio=4992 video=4941
+11-01 20:59:53.260  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv pause pass=true
+11-01 20:59:55.762  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv seek pass=true target=2005 actual=4479 video=4421
+11-01 20:59:56.965  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv replay-zero pass=true actual=1194
+11-01 20:59:57.368  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 20:59:58.371  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv resume-after-replay pass=true actual=981
+11-01 20:59:58.375  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv select-second-track pass=true
+11-01 21:00:00.180  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv audio-switch-and-pitch pass=true
+11-01 21:00:01.185  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv surface-transfer pass=true
+11-01 21:00:05.695  4098  4098 I DecoderMatrix: CHECK file=h264-aac-dual.mkv completion pass=true error=0 position=6034
+11-01 21:00:05.695  4098  4098 I DecoderMatrix: RESULT file=h264-aac-dual.mkv pass=true
+11-01 21:00:05.898  4098  4098 I DecoderMatrix: START file=h264-ac3.mkv
+11-01 21:00:10.904  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv initial pass=true error=0 position=5034 tracks=1 frames=120 pcm=502451 视频：FFmpeg / h264|音频：FFmpeg / ac3|解析：FFmpeg
+11-01 21:00:10.905  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv playback-cadence pass=true expectedFps=23.872045834328002 observedFps=23.837902264600714 audio=5034 video=4968
+11-01 21:00:11.608  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv pause pass=true
+11-01 21:00:14.109  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv seek pass=true target=2792 actual=5266 video=5260
+11-01 21:00:15.313  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv replay-zero pass=true actual=1194
+11-01 21:00:15.716  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 21:00:16.720  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv resume-after-replay pass=true actual=981
+11-01 21:00:16.720  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv select-second-track pass=true
+11-01 21:00:18.525  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv audio-switch-and-pitch pass=true
+11-01 21:00:19.529  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv surface-transfer pass=true
+11-01 21:00:24.032  4098  4098 I DecoderMatrix: CHECK file=h264-ac3.mkv completion pass=true error=0 position=8399
+11-01 21:00:24.032  4098  4098 I DecoderMatrix: RESULT file=h264-ac3.mkv pass=true
+11-01 21:00:24.238  4098  4098 I DecoderMatrix: START file=h264-eac3.mkv
+11-01 21:00:29.248  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv initial pass=true error=0 position=5034 tracks=1 frames=120 pcm=497361 视频：FFmpeg / h264|音频：FFmpeg / eac3|解析：FFmpeg
+11-01 21:00:29.249  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv playback-cadence pass=true expectedFps=23.97424349859144 observedFps=23.837902264600714 audio=5034 video=4963
+11-01 21:00:29.952  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv pause pass=true
+11-01 21:00:32.461  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv seek pass=true target=17393 actual=19739 video=19686
+11-01 21:00:33.672  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv replay-zero pass=true actual=1194
+11-01 21:00:34.075  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 21:00:35.078  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv resume-after-replay pass=true actual=981
+11-01 21:00:35.078  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv select-second-track pass=true
+11-01 21:00:36.880  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv audio-switch-and-pitch pass=true
+11-01 21:00:37.884  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv surface-transfer pass=true
+11-01 21:00:42.392  4098  4098 I DecoderMatrix: CHECK file=h264-eac3.mkv completion pass=true error=0 position=52190
+11-01 21:00:42.393  4098  4098 I DecoderMatrix: RESULT file=h264-eac3.mkv pass=true
+11-01 21:00:42.595  4098  4098 I DecoderMatrix: START file=h264-mp1-dual.mkv
+11-01 21:00:47.599  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv initial pass=true error=0 position=4992 tracks=2 frames=124 pcm=460302 视频：FFmpeg / h264|音频：FFmpeg / mp1|解析：FFmpeg
+11-01 21:00:47.600  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv playback-cadence pass=true expectedFps=24.989688432007107 observedFps=24.83974358974359 audio=4992 video=4920
+11-01 21:00:48.302  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv pause pass=true
+11-01 21:00:50.811  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv seek pass=true target=60000 actual=62474 video=62440
+11-01 21:00:52.014  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv replay-zero pass=true actual=1194
+11-01 21:00:52.421  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 21:00:53.422  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv resume-after-replay pass=true actual=981
+11-01 21:00:53.423  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv select-second-track pass=true
+11-01 21:00:55.229  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv audio-switch-and-pitch pass=true
+11-01 21:00:56.232  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv surface-transfer pass=true
+11-01 21:01:00.743  4098  4098 I DecoderMatrix: CHECK file=h264-mp1-dual.mkv completion pass=true error=0 position=252161
+11-01 21:01:00.743  4098  4098 I DecoderMatrix: RESULT file=h264-mp1-dual.mkv pass=true
+11-01 21:01:00.944  4098  4098 I DecoderMatrix: START file=h264-mp3.mkv
+11-01 21:01:05.950  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv initial pass=true error=0 position=4992 tracks=1 frames=124 pcm=487568 视频：FFmpeg / h264|音频：FFmpeg / mp3|解析：FFmpeg
+11-01 21:01:05.951  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv playback-cadence pass=true expectedFps=24.96671105193076 observedFps=24.83974358974359 audio=4992 video=4920
+11-01 21:01:06.651  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv pause pass=true
+11-01 21:01:09.160  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv seek pass=true target=4005 actual=6479 video=6480
+11-01 21:01:10.363  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv replay-zero pass=true actual=1194
+11-01 21:01:10.769  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 21:01:11.770  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv resume-after-replay pass=true actual=981
+11-01 21:01:11.771  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv select-second-track pass=true
+11-01 21:01:13.577  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv audio-switch-and-pitch pass=true
+11-01 21:01:14.581  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv surface-transfer pass=true
+11-01 21:01:19.088  4098  4098 I DecoderMatrix: CHECK file=h264-mp3.mkv completion pass=true error=0 position=12027
+11-01 21:01:19.089  4098  4098 I DecoderMatrix: RESULT file=h264-mp3.mkv pass=true
+11-01 21:01:19.290  4098  4098 I DecoderMatrix: START file=rv40-aac-dual.mkv
+11-01 21:01:24.294  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv initial pass=true error=0 position=4992 tracks=2 frames=147 pcm=498730 视频：FFmpeg / rv40|音频：FFmpeg / aac|解析：FFmpeg
+11-01 21:01:24.295  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv playback-cadence pass=true expectedFps=29.794070395793778 observedFps=29.447115384615383 audio=4992 video=4938
+11-01 21:01:24.996  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv pause pass=true
+11-01 21:01:27.501  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv seek pass=true target=60000 actual=62474 video=62428
+11-01 21:01:28.705  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv replay-zero pass=true actual=1194
+11-01 21:01:29.108  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 21:01:30.110  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv resume-after-replay pass=true actual=981
+11-01 21:01:30.112  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv select-second-track pass=true
+11-01 21:01:31.915  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv audio-switch-and-pitch pass=true
+11-01 21:01:32.917  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv surface-transfer pass=true
+11-01 21:01:37.424  4098  4098 I DecoderMatrix: CHECK file=rv40-aac-dual.mkv completion pass=true error=0 position=239611
+11-01 21:01:37.425  4098  4098 I DecoderMatrix: RESULT file=rv40-aac-dual.mkv pass=true
+11-01 21:01:37.627  4098  4098 I DecoderMatrix: START file=vorbis-multiaudio.mkv
+11-01 21:01:42.630  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv initial pass=true error=0 position=5077 tracks=4 frames=121 pcm=458985 视频：FFmpeg / h264|音频：FFmpeg / vorbis|解析：FFmpeg
+11-01 21:01:42.631  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv playback-cadence pass=true expectedFps=23.960197267926503 observedFps=23.83297222769352 audio=5077 video=5005
+11-01 21:01:43.333  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv pause pass=true
+11-01 21:01:45.841  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv seek pass=true target=7637 actual=10111 video=10052
+11-01 21:01:47.047  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv replay-zero pass=true actual=1194
+11-01 21:01:47.450  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv paused-rapid-seek-zero pass=true actual=0
+11-01 21:01:48.450  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv resume-after-replay pass=true actual=981
+11-01 21:01:48.452  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv select-second-track pass=true
+11-01 21:01:50.255  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv audio-switch-and-pitch pass=true
+11-01 21:01:51.260  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv surface-transfer pass=true
+11-01 21:01:55.765  4098  4098 I DecoderMatrix: CHECK file=vorbis-multiaudio.mkv completion pass=true error=0 position=22927
+11-01 21:01:55.765  4098  4098 I DecoderMatrix: RESULT file=vorbis-multiaudio.mkv pass=true
+11-01 21:01:55.966  4098  4098 I DecoderMatrix: DONE samples=8 failures=0

@@ -140,6 +140,7 @@ class KtvPlaybackEngine(context: Context, private val audioOnly: Boolean = false
     private var recoveryListener: ((Boolean) -> Unit)? = null
     private val renderedFrames = java.util.concurrent.atomic.AtomicLong()
     internal val renderedVideoFrames: Long get() = renderedFrames.get()
+    internal val renderedVideoPosition: Long get() = session?.renderedVideoPosition ?: -1L
     @Volatile var hasRenderedFirstFrame = false
         private set
 

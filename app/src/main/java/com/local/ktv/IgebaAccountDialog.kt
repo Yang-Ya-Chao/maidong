@@ -6,6 +6,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.InputType
 import android.view.WindowManager
+import android.widget.CheckBox
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
@@ -19,7 +20,7 @@ internal object IgebaAccountDialog {
         val current = IgebaAccount.session
         if (current != null) {
             AlertDialog.Builder(activity).setTitle("i歌霸账号")
-                .setMessage("当前账号：${current.nickname}\n账号编号：${current.userId}\n会话已加密保存，重启后自动恢复；服务方使会话失效时需要重新登录。")
+                .setMessage("当前账号：${current.nickname}\n账号编号：${current.userId}\n会话已加密保存，重启后自动恢复。\n自动恢复登录：${if (IgebaAccount.automaticLoginEnabled) "已开启" else "未开启（可重新登录后勾选）"}")
                 .setPositiveButton("关闭", null)
                 .setNeutralButton("退出登录") { _, _ -> IgebaAccount.logout(); changed() }
                 .setNegativeButton("切换账号") { _, _ -> form(activity, false, changed) }.show()
@@ -43,9 +44,14 @@ internal object IgebaAccountDialog {
         val account = input(if (registration) "中国大陆手机号" else "手机号、邮箱或用户名",
             if (registration) InputType.TYPE_CLASS_PHONE else InputType.TYPE_CLASS_TEXT)
         val password = input("密码", InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD)
+        val remember = CheckBox(activity).apply {
+            text = "加密保存密码，允许下载失败时自动恢复登录"
+            isChecked = false
+            body.addView(this)
+        }
         val code = if (registration) input("短信验证码", InputType.TYPE_CLASS_NUMBER) else null
         val status = TextView(activity).apply {
-            text = "密码不会保存；登录会话加密保存在本机，重启后自动恢复。"
+            text = "登录会话加密保存在本机。勾选后才保存密码；退出登录会删除会话和密码。"
             body.addView(this)
         }
         val send = if (registration) Button(activity).apply { text = "获取验证码"; body.addView(this) } else null
@@ -101,6 +107,7 @@ internal object IgebaAccountDialog {
             submit.setOnClickListener {
                 val name = account.text.toString().trim()
                 val secret = password.text.toString()
+                val allowRecovery = remember.isChecked
                 val verification = code?.text?.toString().orEmpty()
                 if (registration) {
                     work({
@@ -108,7 +115,7 @@ internal object IgebaAccountDialog {
                             IgebaAccount.register(name, secret, verification)
                             registrationCompleted = true
                         }
-                        IgebaAccount.login(name, secret)
+                        IgebaAccount.login(name, secret, allowRecovery)
                         "注册并登录成功"
                     }, {
                         password.text.clear()
@@ -117,7 +124,7 @@ internal object IgebaAccountDialog {
                         changed()
                     })
                 } else {
-                    work({ IgebaAccount.login(name, secret); "登录成功" }, {
+                    work({ IgebaAccount.login(name, secret, allowRecovery); "登录成功" }, {
                         password.text.clear()
                         dialog.dismiss()
                         changed()
