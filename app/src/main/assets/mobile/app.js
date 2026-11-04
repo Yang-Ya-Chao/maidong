@@ -3,7 +3,7 @@ const $$ = (selector) => document.querySelectorAll(selector);
 const uiState = {
   page: 1, query: "", searchMode: "singer", busy: false,
   hotPage: 1, hotPageSize: 10, hotBusy: false,
-  visible: true, connected: false
+  visible: true, connected: false, heartbeatFailures: 0
 };
 
 function escapeHtml(value) {
@@ -32,12 +32,10 @@ async function api(path, options = {}) {
         ...options,
         signal: controller.signal
       });
-    } catch (error) {
-      setConnected(false);
-      throw error;
-    }
+    } catch (error) { throw error; }
     // A server response proves connectivity even when an operation is rejected.
     setConnected(true);
+    uiState.heartbeatFailures = 0;
     const data = await response.json();
     if (!response.ok || data.ok === false) throw new Error(data.error || "操作失败");
     return data;
@@ -95,6 +93,10 @@ async function refresh() {
     $("#accompany").classList.toggle("active", data.vocalMode !== "original");
     $("#nextSong").textContent = data.next?.title || "队列为空";
   } catch (error) {
+    // A slow search or suspended mobile tab is not proof of a lost LAN connection.
+    // Only consecutive heartbeat failures change the connectivity indicator.
+    uiState.heartbeatFailures += 1;
+    if (uiState.heartbeatFailures >= 3) setConnected(false);
     console.warn('状态更新失败', error.message);
   } finally { refreshing = false; }
 }
@@ -222,7 +224,26 @@ $("#hotNext").addEventListener("click", () => loadHot(uiState.hotPage + 1));
   $("#" + kind + "Volume").addEventListener("input", (event) => { $("#" + kind + "Value").textContent = event.target.value; });
   $("#" + kind + "Volume").addEventListener("change", (event) => updateAudio({ [kind + "Volume"]: Number(event.target.value) }));
 });
-document.addEventListener("visibilitychange", () => { uiState.visible = !document.hidden; if (uiState.visible) refresh(); });
-window.setInterval(() => { if (uiState.visible) refresh(); }, 1000);
-refresh();
+let heartbeatTimer;
+let heartbeatRunning = false;
+async function heartbeat() {
+  if (heartbeatRunning) return;
+  heartbeatRunning = true;
+  window.clearTimeout(heartbeatTimer);
+  try {
+    if (uiState.visible) await refresh();
+  } finally {
+    heartbeatRunning = false;
+    heartbeatTimer = window.setTimeout(heartbeat,
+      uiState.connected ? 1500 : Math.min(8000, 1500 * (uiState.heartbeatFailures + 1)));
+  }
+}
+function resumeConnection() {
+  uiState.visible = !document.hidden;
+  if (uiState.visible) heartbeat();
+}
+document.addEventListener("visibilitychange", resumeConnection);
+window.addEventListener("pageshow", resumeConnection);
+window.addEventListener("online", resumeConnection);
+heartbeat();
 loadHot(1);

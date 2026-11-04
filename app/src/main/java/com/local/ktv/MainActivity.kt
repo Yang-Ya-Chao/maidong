@@ -159,8 +159,9 @@ class MainActivity : AppCompatActivity() {
     private val remoteNetworkMonitor = object : Runnable {
         override fun run() {
             val ip = localIp().takeIf { LocalRemoteServer.isPrivateIpv4(it) }
-            if (ip != remoteServer.address() || (ip != null && !remoteServer.isRunning())) {
-                remoteServer.stop()
+            // The listener binds all LAN interfaces. A transient missing address must not
+            // terminate phone requests or move the listening port.
+            if (ip != null && (ip != remoteServer.address() || !remoteServer.isRunning())) {
                 startRemoteServer()
                 updateMobileQrOverlay()
                 updateFullScreenQrOverlay()
@@ -729,6 +730,7 @@ class MainActivity : AppCompatActivity() {
     private fun applyResponsiveLayout() {
         val config = resources.configuration
         compactUi = config.screenWidthDp < 1000 || config.screenHeightDp < 600
+        installSearchLayoutSizing()
         if (!compactUi) return
         val widthDp = config.screenWidthDp.coerceAtLeast(480)
         val barHeight = dp(52)
@@ -779,6 +781,49 @@ class MainActivity : AppCompatActivity() {
         ).forEach { id ->
             findViewById<TextView?>(id)?.apply { textSize = 15f; setPadding(dp(8), dp(8), dp(8), dp(8)) }
         }
+    }
+
+    /** Size the two search panes from their measured space, including non-TV density settings. */
+    private fun installSearchLayoutSizing() {
+        val shell = findViewById<LinearLayout>(R.id.main_layout) ?: return
+        fun resize() {
+            val availableWidth = shell.width - shell.paddingLeft - shell.paddingRight
+            val availableHeight = shell.height - shell.paddingTop - shell.paddingBottom
+            if (availableWidth <= 0 || availableHeight <= 0) return
+            val left = findViewById<LinearLayout>(R.id.left_column)
+            val leftWidth = minOf((availableWidth * 0.35f).toInt(), dp(440))
+            val gap = dp(if (compactUi) 12 else 20)
+            (left.layoutParams as LinearLayout.LayoutParams).let { lp ->
+                if (lp.width != leftWidth || lp.marginEnd != gap) {
+                    lp.width = leftWidth; lp.marginEnd = gap; left.layoutParams = lp
+                }
+            }
+            val player = findViewById<View>(R.id.player_container)
+            val videoHeight = minOf(leftWidth * 9 / 16, (availableHeight * 0.46f).toInt())
+            if (player.layoutParams.height != videoHeight) {
+                player.layoutParams = player.layoutParams.apply { height = videoHeight }
+            }
+            val grid = findViewById<LinearLayout>(R.id.keyboard_grid)
+            val modes = (grid.parent as? ViewGroup)?.getChildAt(0) as? LinearLayout
+            val modeWidth = (leftWidth * 0.23f).toInt().coerceAtMost(dp(80))
+            modes?.let { column ->
+                if (column.layoutParams.width != modeWidth) column.layoutParams =
+                    column.layoutParams.apply { width = modeWidth }
+                for (index in 0 until column.childCount) {
+                    val button = column.getChildAt(index) as? TextView ?: continue
+                    button.layoutParams = (button.layoutParams as LinearLayout.LayoutParams).apply {
+                        width = LinearLayout.LayoutParams.MATCH_PARENT
+                        marginEnd = dp(4)
+                    }
+                    androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                        button, 9, 14, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
+                }
+            }
+        }
+        shell.addOnLayoutChangeListener { _, l, top, r, bottom, oldL, oldTop, oldR, oldBottom ->
+            if (r - l != oldR - oldL || bottom - top != oldBottom - oldTop) resize()
+        }
+        shell.post { resize() }
     }
 
     private fun chromeBarHeight(): Int = dp(if (compactUi) 52 else 64)
@@ -7370,7 +7415,7 @@ class MainActivity : AppCompatActivity() {
             rowLayout.setGravity(Gravity.CENTER)
             rowLayout.setWeightSum(row!!.size.toFloat())
             val rowLp = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(56)
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f
             )
             rowLp.bottomMargin = dp(2)
             grid.addView(rowLayout, rowLp)
@@ -7378,6 +7423,10 @@ class MainActivity : AppCompatActivity() {
                 val btn = TextView(this)
                 btn.setText(key)
                 btn.setTextSize(15f)
+                btn.isSingleLine = true
+                btn.includeFontPadding = false
+                androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                    btn, 9, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
                 btn.setTextColor(Color.rgb(241, 241, 241))
                 btn.setGravity(Gravity.CENTER)
                 btn.setBackgroundColor(Color.TRANSPARENT)
@@ -8068,6 +8117,12 @@ class MainActivity : AppCompatActivity() {
             2 -> listOf(
                 SettingsEntry(R.drawable.ott_ic_download_setting, "开机清空下载列表", "开机时删除本地已下载歌曲并清理数据库状态", action = { clearDownloadsOnBoot = !clearDownloadsOnBoot; saveState() }, checked = clearDownloadsOnBoot),
                 SettingsEntry(R.drawable.ott_ic_tv_display_mode, "自动全屏", "设置多久未操作后自动进入全屏", "设置间隔") { showAutoFullscreenDialog() },
+                SettingsEntry(R.drawable.ott_ic_play, "解码器",
+                    com.local.ktv.player.PlaybackDecoderSettings.load(this).title, "选择") { showDecoderDialog() },
+                SettingsEntry(R.drawable.ott_ic_play, "当前播放内核", playbackEngine.decoderSummary.substringBefore('\n'), "查看") {
+                    AlertDialog.Builder(this).setTitle("当前播放内核")
+                        .setMessage(playbackEngine.decoderSummary).setPositiveButton("关闭", null).create().showForTv()
+                },
                 SettingsEntry(R.drawable.ott_ic_play, "音画同步") { showAudioSyncDialog() },
                 SettingsEntry(R.drawable.ott_ic_marquee_setting, "歌曲片头字幕", action = { songTitleSubtitleEnabled = !songTitleSubtitleEnabled; saveState() }, checked = songTitleSubtitleEnabled),
             )
@@ -8518,6 +8573,22 @@ class MainActivity : AppCompatActivity() {
                 TvFocusStyler.installAction(this)
             })
         }
+    }
+
+    private fun showDecoderDialog() {
+        val modes = com.local.ktv.player.PlaybackDecoderMode.entries
+        var pending = modes.indexOf(com.local.ktv.player.PlaybackDecoderSettings.load(this))
+        val choices = dialogSingleChoiceGroup(modes.map { it.title }.toTypedArray(), pending) { pending = it }
+        AlertDialog.Builder(this)
+            .setTitle("解码器")
+            .setMessage("自动模式优先使用 ExoPlayer，播放失败后切换 FFmpeg。修改从下一首歌曲生效。")
+            .setView(choices)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("确认") { _, _ ->
+                com.local.ktv.player.PlaybackDecoderSettings.save(this, modes[pending])
+                toast("已选择 ${modes[pending].title}，下一首歌曲生效")
+                showSettingsSection(2, false)
+            }.create().showForTv()
     }
 
     private fun showScreenDialog() {

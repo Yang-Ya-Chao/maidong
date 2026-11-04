@@ -35,7 +35,7 @@ class QuickSearchAdapter(
             onPrimary = onSongClick, onDownload = onSongMore, onMore = onSongMore,
             onTop = onSongClick, onDelete = {}, onPauseResume = onSongClick,
         ),
-        catalogRows = 3, headerHeightDp = if (singers.isEmpty()) 0 else 132,
+        catalogRows = 3, headerHeightPixels = { parent -> singerHeaderHeight(parent) },
     )
 
     fun refreshVisibleStates(list: android.widget.ListView): Boolean =
@@ -50,23 +50,34 @@ class QuickSearchAdapter(
     override fun getItemViewType(position: Int): Int = if (position < headerRows) 0 else 1
 
     override fun getView(position: Int, convertView: View?, parent: ViewGroup): View {
-        if (singers.isNotEmpty() && position == 0) return createSingerRow()
+        if (singers.isNotEmpty() && position == 0) return createSingerRow(parent)
         val songRow = position - if (singers.isEmpty()) 0 else 1
         return songAdapter.getView(songRow, convertView, parent)
     }
 
-    private fun createSingerRow(): View = LinearLayout(context).apply {
+    private fun singerHeaderHeight(parent: ViewGroup): Int {
+        if (singers.isEmpty()) return 0
+        val available = (maxOf(parent.height, parent.measuredHeight) -
+            parent.paddingTop - parent.paddingBottom).coerceAtLeast(1)
+        return minOf(dp(132), (available * 0.36f).toInt()).coerceAtLeast(1)
+    }
+
+    private fun createSingerRow(parent: ViewGroup): View = LinearLayout(context).apply {
+        val headerHeight = singerHeaderHeight(parent)
+        layoutParams = android.widget.AbsListView.LayoutParams(-1, headerHeight)
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER
         singers.take(4).forEach { singer ->
-            addView(createSingerTile(singer), LinearLayout.LayoutParams(0, dp(132), 1f))
+            addView(createSingerTile(singer, headerHeight), LinearLayout.LayoutParams(0, headerHeight, 1f))
         }
         repeat((4 - singers.size.coerceAtMost(4)).coerceAtLeast(0)) {
-            addView(View(context), LinearLayout.LayoutParams(0, dp(132), 1f))
+            addView(View(context), LinearLayout.LayoutParams(0, headerHeight, 1f))
         }
     }
 
-    private fun createSingerTile(singer: Array<String?>): View = LinearLayout(context).apply {
+    private fun createSingerTile(singer: Array<String?>, tileHeight: Int): View = LinearLayout(context).apply {
+        val labelHeight = minOf(dp(28), tileHeight / 3)
+        val portraitSize = minOf(dp(88), tileHeight - labelHeight - dp(5)).coerceAtLeast(1)
         orientation = LinearLayout.VERTICAL
         gravity = Gravity.CENTER_HORIZONTAL
         isClickable = true
@@ -81,15 +92,18 @@ class QuickSearchAdapter(
                 override fun getOutline(view: View, outline: Outline) = outline.setOval(0, 0, view.width, view.height)
             }
             clipToOutline = true
-        }, LinearLayout.LayoutParams(dp(88), dp(88)).apply { topMargin = dp(5) })
+        }, LinearLayout.LayoutParams(portraitSize, portraitSize).apply { topMargin = dp(5) })
         addView(TextView(context).apply {
             text = name
             textSize = 15f
+            includeFontPadding = false
+            androidx.core.widget.TextViewCompat.setAutoSizeTextTypeUniformWithConfiguration(
+                this, 9, 15, 1, android.util.TypedValue.COMPLEX_UNIT_SP)
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER
             isSingleLine = true
             ellipsize = TextUtils.TruncateAt.END
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(32)))
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, labelHeight))
         installPress(this)
         setOnClickListener { onSingerClick(singer) }
         TvFocusStyler.install(this)
