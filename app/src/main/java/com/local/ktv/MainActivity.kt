@@ -262,10 +262,11 @@ class MainActivity : AppCompatActivity() {
 
     /** 当前浏览模式的总页数  */
     private var browseTotalPages = 0
+    private val favoriteSongs = ArrayList<Song>()
 
     /** 原版一屏展示量：歌曲 2x5、歌手 4x2、排行榜 1x6。 */
     private fun browsePageSize(): Int = when (browseMode) {
-        "rank" -> 6
+        "rank", "ordered", "sang", "downloads" -> 6
         "singer_list" -> 8
         else -> IgebaCatalog.PAGE_SIZE
     }
@@ -389,7 +390,6 @@ class MainActivity : AppCompatActivity() {
     private var voiceEngineVolume = 70
     private var lightMode: String? = "自动"
     private var audioDelayMs = 0
-    private var screenBrightness = 80
     private var screenMode = "16 : 9"
     private var doubleScreenEnabled = false
     private var tableBroadcastEnabled = true
@@ -472,7 +472,6 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
-        applyScreenBrightness()
         audioManager = getSystemService(AUDIO_SERVICE) as AudioManager?
         // 初始化 API 客户端 (歌曲下载链接)
         playbackEngine = KtvPlaybackEngine(applicationContext)
@@ -3918,12 +3917,6 @@ class MainActivity : AppCompatActivity() {
         toast("广播已发送")
     }
 
-    private fun applyScreenBrightness() {
-        val attrs = getWindow().getAttributes()
-        attrs.screenBrightness = screenBrightness / 100f
-        getWindow().setAttributes(attrs)
-    }
-
     private fun removeMissingQueueItems() {
         val before = orderQueue!!.size
         for (i in orderQueue.indices.reversed()) {
@@ -4172,7 +4165,6 @@ class MainActivity : AppCompatActivity() {
                         if (catalog != null) copyFile(catalog, library.catalogFile())
                         store.load()
                         loadStateFromStore()
-                        applyScreenBrightness()
                         refreshLibrary(Runnable {
                             toast("恢复完成")
                             showHome()
@@ -5558,7 +5550,7 @@ class MainActivity : AppCompatActivity() {
             saveState()
             toast(if (added) "已收藏" else "已取消收藏")
             if (browseMode == "favorites") {
-                visibleSongs.removeAll { stableId(it) == stableId(song) }
+                favoriteSongs.removeAll { stableId(it) == stableId(song) }
                 renderSongList()
             }
         }, LinearLayout.LayoutParams(0, -2, 1f))
@@ -8003,6 +7995,7 @@ class MainActivity : AppCompatActivity() {
             busy(true, "曲库加载中...")
             return
         }
+        val requestVersion = ++browseRequestVersion
         // 从数据库查询收藏歌曲
         io.execute(Runnable {
             val result: MutableList<Song> = ArrayList<Song>()
@@ -8012,11 +8005,12 @@ class MainActivity : AppCompatActivity() {
                 if (song != null) result.add(song)
             }
             main.post(Runnable {
-                visibleSongs.clear()
-                visibleSongs.addAll(result)
+                if (requestVersion != browseRequestVersion || browseMode != "favorites") return@Runnable
+                favoriteSongs.clear()
+                favoriteSongs.addAll(result)
                 updateCategories()
                 renderSongList()
-                if (visibleSongs.isEmpty()) toast("暂无收藏，长按歌曲可收藏")
+                if (favoriteSongs.isEmpty()) toast("暂无收藏，长按歌曲可收藏")
             })
         })
     }
@@ -9256,12 +9250,22 @@ class MainActivity : AppCompatActivity() {
         val focusedRow = generateSequence(focusedView) { it.parent as? View }
             .firstOrNull { it.parent === list }
         val oldFocusedTop = focusedRow?.top
-        if (browseMode == "ordered") {
+        val personalSongs = when (browseMode) {
+            "ordered" -> orderQueue.orEmpty()
+            "sang" -> sangHistory
+            "downloads" -> downloads.map { it.song }
+            "favorites" -> favoriteSongs
+            else -> null
+        }
+        if (personalSongs != null) {
+            val pageSize = browsePageSize()
+            browseTotalCount = personalSongs.size
+            browseTotalPages = (personalSongs.size + pageSize - 1) / pageSize
+            browsePage = browsePage.coerceIn(0, max(0, browseTotalPages - 1))
+            val pageSongs = personalSongs.drop(browsePage * pageSize).take(pageSize)
             visibleSongs.clear()
-            visibleSongs.addAll(orderQueue.orEmpty())
-        } else if (browseMode == "sang") {
-            visibleSongs.clear()
-            visibleSongs.addAll(sangHistory)
+            visibleSongs.addAll(pageSongs)
+            updatePageInfo()
         }
         if (visibleSongs.isEmpty()) {
             modernSongAdapter = null
@@ -9273,7 +9277,7 @@ class MainActivity : AppCompatActivity() {
             "rank", "ordered", "downloads", "sang" -> browseMode
             else -> "catalog"
         }
-        val pageOffset = if (mode == "rank") browsePage * browsePageSize() else 0
+        val pageOffset = browsePage * browsePageSize()
         val existing = modernSongAdapter?.takeIf { it.matches(mode, pageOffset) && list.adapter === it }
         val listAdapter = existing ?: SongListAdapter(
             this,
@@ -9460,6 +9464,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun reloadCurrentBrowsePage() {
         when (browseMode) {
+            "favorites", "sang", "ordered", "downloads" -> renderSongList()
             "singer_list" -> loadSingerList(browseParam, activeSearchQuery)
             "local" -> loadLocalCatalogPage()
             "category_list" -> loadCategoryPlaylistPage(activeSearchQuery)
@@ -9676,7 +9681,6 @@ class MainActivity : AppCompatActivity() {
         store.voiceEngineVolume = voiceEngineVolume
         store.lightMode = lightMode!!
         store.audioDelayMs = audioDelayMs
-        store.screenBrightness = screenBrightness
         store.screenMode = screenMode
         store.doubleScreenEnabled = doubleScreenEnabled
         store.tableBroadcastEnabled = tableBroadcastEnabled
@@ -9746,7 +9750,6 @@ class MainActivity : AppCompatActivity() {
         voiceEngineVolume = store.voiceEngineVolume
         lightMode = store.lightMode
         audioDelayMs = store.audioDelayMs
-        screenBrightness = store.screenBrightness
         screenMode = store.screenMode.takeIf { it != "适应屏幕" } ?: "16 : 9"
         doubleScreenEnabled = store.doubleScreenEnabled
         tableBroadcastEnabled = store.tableBroadcastEnabled
@@ -9872,6 +9875,9 @@ class MainActivity : AppCompatActivity() {
                 return true
             }
         }
+        if (!isFullScreen && browseMode !in setOf("settings", "settings_section") &&
+            TvListNavigation.handle(songList, btnBack, btnPrevPage, btnNextPage, code)
+        ) return true
         val homeDirection = homeLayout?.visibility == View.VISIBLE && currentPage == "首页" &&
             (code == KeyEvent.KEYCODE_DPAD_LEFT || code == KeyEvent.KEYCODE_DPAD_RIGHT ||
                 code == KeyEvent.KEYCODE_DPAD_UP || code == KeyEvent.KEYCODE_DPAD_DOWN)

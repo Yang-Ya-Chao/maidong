@@ -44,7 +44,6 @@ class KtvStore {
     @JvmField var voiceEngineVolume = 70
     @JvmField var lightMode = "自动"
     @JvmField var audioDelayMs = 0
-    @JvmField var screenBrightness = 80
     @JvmField var screenMode = "16 : 9"
     @JvmField var doubleScreenEnabled = false
     @JvmField var tableBroadcastEnabled = true
@@ -95,7 +94,6 @@ class KtvStore {
             voiceEngineVolume = root.optInt("voiceEngineVolume", 70)
             lightMode = root.optString("lightMode", "自动")
             audioDelayMs = root.optInt("audioDelayMs", 0)
-            screenBrightness = root.optInt("screenBrightness", 80)
             screenMode = root.optString("screenMode", "16 : 9")
                 .takeIf { it != "适应屏幕" } ?: "16 : 9"
             doubleScreenEnabled = root.optBoolean("doubleScreenEnabled", false)
@@ -162,7 +160,6 @@ class KtvStore {
                 put("voiceEngineVolume", voiceEngineVolume)
                 put("lightMode", lightMode)
                 put("audioDelayMs", audioDelayMs)
-                put("screenBrightness", screenBrightness)
                 put("screenMode", screenMode)
                 put("doubleScreenEnabled", doubleScreenEnabled)
                 put("tableBroadcastEnabled", tableBroadcastEnabled)
