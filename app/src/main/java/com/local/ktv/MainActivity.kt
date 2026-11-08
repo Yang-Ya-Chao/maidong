@@ -3688,6 +3688,13 @@ class MainActivity : AppCompatActivity() {
         return "{\"ok\":false,\"error\":\"" + e.message.toString().replace("\"", "'") + "\"}"
     }
 
+    /** Display-only source label: local file, OpenList direct play, or online (needs download). */
+    private fun songSource(song: Song, localFile: Boolean): String = when {
+        localFile -> "local"
+        song.isOpenList() -> "nas"
+        else -> "online"
+    }
+
     @Throws(Exception::class)
     private fun songJson(song: Song): JSONObject {
         val item = JSONObject()
@@ -3697,7 +3704,11 @@ class MainActivity : AppCompatActivity() {
         item.put("category", song.category)
         item.put("language", song.language)
         item.put("remote", song.remote)
-        item.put("local", song.hasLocalFile() || SongOkDownloadManager.isDownloaded(song))
+        val localFile = song.hasLocalFile() || SongOkDownloadManager.isDownloaded(song)
+        item.put("local", localFile)
+        // Display-only: distinguish OpenList (network-drive direct play) from online songs
+        // that still need downloading. Does not change the meaning of "local".
+        item.put("source", songSource(song, localFile))
         item.put("favorite", store.isFavorite(song))
         item.put("playCount", song.playCount)
         item.put("hasOriginal", hasUrl(song.originalUrl) || hasUrl(song.originalPath))
@@ -9366,10 +9377,12 @@ class MainActivity : AppCompatActivity() {
     private fun songRowState(song: Song): SongRowState {
         val task = downloads.lastOrNull { stableId(it.song) == stableId(song) }
         val taskState = task?.state.orEmpty()
+        val localFile = song.hasLocalFile()
         return SongRowState(
             current = currentSong?.equals(song) == true,
             queued = orderQueue!!.contains(song) || pendingQueueSongIds.contains(stableId(song)),
-            local = song.hasLocalFile(),
+            local = localFile,
+            source = songSource(song, localFile),
             downloading = !taskState.startsWith("失败") && !taskState.contains("暂停") && isDownloading(song),
             failed = taskState.startsWith("失败"),
             paused = taskState.contains("暂停") || taskState.contains("中断"),

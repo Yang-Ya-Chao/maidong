@@ -17,6 +17,7 @@ data class SongRowState(
     val current: Boolean = false,
     val queued: Boolean = false,
     val local: Boolean = false,
+    val source: String = "online",
     val downloading: Boolean = false,
     val failed: Boolean = false,
     val paused: Boolean = false,
@@ -56,7 +57,7 @@ class SongListAdapter(
     )
     private data class CatalogViews(
         var binding: CatalogBinding, val ordered: View, val downloading: TextView,
-        val failed: View, val online: View,
+        val failed: View, val online: TextView,
     )
 
     private data class SingleViews(
@@ -288,12 +289,15 @@ class SongListAdapter(
         val ordered = icon(R.drawable.ic_order_song, null)
         val downloading = text("", 14, Color.WHITE, Gravity.CENTER)
         val failed = icon(R.drawable.ic_download_retry, null)
-        val online = icon(R.drawable.ott_ic_download, null)
-        listOf(ordered, failed, online).forEach { view ->
+        // Three-state source label instead of the generic download icon:
+        // OpenList songs are played directly and never need downloading.
+        val online = text("", 12, Color.WHITE, Gravity.CENTER)
+        listOf(ordered, failed).forEach { view ->
             slot.addView(view, android.widget.FrameLayout.LayoutParams(dp(40), -1, Gravity.CENTER))
         }
         slot.addView(downloading, android.widget.FrameLayout.LayoutParams(-1, -1))
-        card.addView(slot, LinearLayout.LayoutParams(dp(52), ViewGroup.LayoutParams.MATCH_PARENT))
+        slot.addView(online, android.widget.FrameLayout.LayoutParams(-1, -1, Gravity.CENTER))
+        card.addView(slot, LinearLayout.LayoutParams(dp(72), ViewGroup.LayoutParams.MATCH_PARENT))
         return CatalogViews(binding, ordered, downloading, failed, online).also {
             updateCatalogState(card, song, binding.state, it)
         }
@@ -306,6 +310,15 @@ class SongListAdapter(
         views.failed.visibility = if (!ordered && !state.downloading && state.failed) View.VISIBLE else View.INVISIBLE
         views.online.visibility = if (!ordered && !state.downloading && !state.failed && !state.local)
             View.VISIBLE else View.INVISIBLE
+        if (views.online.visibility == View.VISIBLE) {
+            views.online.text = when (state.source) {
+                "local" -> "本地"
+                "nas" -> "NAS 直读"
+                else -> "需下载"
+            }
+            views.online.setTextColor(if (state.source == "online")
+                Color.rgb(255, 118, 154) else Color.rgb(98, 230, 165))
+        }
         val progress = "↓ ${state.progress}%"
         if (views.downloading.text.toString() != progress) views.downloading.text = progress
         card.contentDescription = songSpokenLabel(song, state)
@@ -316,8 +329,9 @@ class SongListAdapter(
             state.current -> "正在播放"
             state.queued -> "已点"
             state.downloading -> "正在下载百分之${state.progress}"
+            state.source == "nas" -> "网盘直读，无需下载"
             state.local -> "已下载"
-            else -> "未下载"
+            else -> "需联网下载"
         }
         return "歌曲，${song.title.orEmpty()}，歌手，${song.singer.orEmpty()}，$stateText，双击点歌，长按查看更多"
     }
