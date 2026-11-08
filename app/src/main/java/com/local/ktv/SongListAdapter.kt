@@ -308,7 +308,7 @@ class SongListAdapter(
         views.ordered.visibility = if (ordered) View.VISIBLE else View.INVISIBLE
         views.downloading.visibility = if (!ordered && state.downloading) View.VISIBLE else View.INVISIBLE
         views.failed.visibility = if (!ordered && !state.downloading && state.failed) View.VISIBLE else View.INVISIBLE
-        views.online.visibility = if (!ordered && !state.downloading && !state.failed && !state.local)
+        views.online.visibility = if (!ordered && !state.downloading && !state.failed)
             View.VISIBLE else View.INVISIBLE
         if (views.online.visibility == View.VISIBLE) {
             views.online.text = when (state.source) {
