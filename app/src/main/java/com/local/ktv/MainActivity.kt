@@ -2310,8 +2310,10 @@ class MainActivity : AppCompatActivity() {
         progressRow.setBackgroundColor(Color.argb(155, 0, 0, 0))
 
         fullScreenSeekBar = SeekBar(this).apply {
+            id = View.generateViewId()
             max = 1
             isFocusable = true
+            isFocusableInTouchMode = true
             setOnSeekBarChangeListener(object : OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
                     if (fromUser) {
@@ -2335,6 +2337,28 @@ class MainActivity : AppCompatActivity() {
                     persistRuntimeState()
                 }
             })
+            // 电视遥控器：进度条获得焦点后，方向键左右直接跳转播放位置。
+            // 原生 SeekBar 在 TV 上用方向键只会移动滑块而不会真正 seekTo，需自行处理。
+            setOnKeyListener { _, keyCode, event ->
+                if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+                val bar = this@apply
+                when (keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> {
+                        val step = max(1000, bar.max / 20)
+                        val delta = if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) step else -step
+                        val newPos = (bar.progress + delta).coerceIn(0, bar.max)
+                        bar.progress = newPos
+                        runCatching {
+                            player?.seekTo(newPos)
+                            prepareExternalVocal(currentSong, newPos, forceSeek = true)
+                        }
+                        updateLyricView()
+                        persistRuntimeState()
+                        true
+                    }
+                    else -> false
+                }
+            }
         }
         progressRow.addView(fullScreenSeekBar, LinearLayout.LayoutParams(0, dp(48), 1f))
         fullScreenTime = label("00:00 / 00:00", 14, Color.WHITE).apply {
@@ -2348,6 +2372,14 @@ class MainActivity : AppCompatActivity() {
             )
         )
         fullScreenProgressRow = progressRow
+
+        // 电视遥控器：底部控制按钮“下”键应跳到进度条，进度条“上”键返回控制按钮，
+        // 形成闭环，使遥控器焦点能从控制栏下移到底部进度条并重新返回。
+        val seekId = fullScreenSeekBar!!.id
+        controlItems.forEach { it.nextFocusDownId = seekId }
+        fullScreenSeekBar!!.nextFocusUpId =
+            controlItems.getOrNull(2)?.id ?: controlItems.first().id
+        fullScreenSeekBar!!.nextFocusDownId = fullScreenSeekBar!!.id
 
         isFullScreen = true
         fullScreenContainer!!.setVisibility(View.VISIBLE)
