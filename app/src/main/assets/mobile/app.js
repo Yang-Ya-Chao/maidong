@@ -49,14 +49,24 @@ function toast(text) {
   window.setTimeout(() => element.classList.remove("show"), 1600);
 }
 
+/* Display-only source label. Falls back to the stock binary payload when the
+   server does not provide `source` (e.g. an older TV build). */
+function sourceLabel(song) {
+  if (song.source === "local") return ["本地", "ok"];
+  if (song.source === "nas") return ["NAS 直读", "ok"];
+  if (song.source === "online") return ["需下载", "warn"];
+  return song.local === true ? ["本地", "ok"] : ["在线", "warn"];
+}
+
 function songRow(song, queue = false, current = false, index = 0, ranking = false) {
   const number = current ? "♪" : String(index + 1).padStart(2, "0");
+  const [label, tone] = sourceLabel(song);
   const actions = queue && !current
     ? '<button class="top">置顶</button><button class="delete" aria-label="删除">×</button>'
     : !queue ? '<button class="order">点歌</button>' : "";
   return `<div class="song${ranking && index < 3 ? " podium" : ""}" data-id="${escapeHtml(song.id)}">
     <div class="song-index">${number}</div>
-    <div class="info">${current ? '<span class="playing">正在播放</span>' : ""}<b>${escapeHtml(song.title)}</b><p><span class="source-badge${song.local === true ? " local" : ""}">${song.local === true ? "本地" : "在线"}</span>${escapeHtml(song.singer)}${song.language ? " · " + escapeHtml(song.language) : ""}</p></div>
+    <div class="info">${current ? '<span class="playing">正在播放</span>' : ""}<b>${escapeHtml(song.title)}</b><p><span class="source-badge ${tone}">${label}</span>${escapeHtml(song.singer)}${song.language ? " · " + escapeHtml(song.language) : ""}</p></div>
     ${actions}
   </div>`;
 }
