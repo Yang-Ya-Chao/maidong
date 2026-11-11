@@ -71,7 +71,7 @@ class SongListAdapter(
         if (views.binding.state != binding.state) {
             views.binding = binding
             views.render(binding.state)
-            row.contentDescription = songSpokenLabel(song, binding.state)
+            row.contentDescription = songSpokenLabel(song)
         }
         return true
     }
@@ -321,20 +321,11 @@ class SongListAdapter(
         }
         val progress = "↓ ${state.progress}%"
         if (views.downloading.text.toString() != progress) views.downloading.text = progress
-        card.contentDescription = songSpokenLabel(song, state)
+        card.contentDescription = songSpokenLabel(song)
     }
 
-    private fun songSpokenLabel(song: Song, state: SongRowState): String {
-        val stateText = when {
-            state.current -> "正在播放"
-            state.queued -> "已点"
-            state.downloading -> "正在下载百分之${state.progress}"
-            state.source == "nas" -> "网盘直读，无需下载"
-            state.local -> "已下载"
-            else -> "需联网下载"
-        }
-        return "歌曲，${song.title.orEmpty()}，歌手，${song.singer.orEmpty()}，$stateText，双击点歌，长按查看更多"
-    }
+    private fun songSpokenLabel(song: Song): String =
+        listOfNotNull(song.title, song.singer).filter { it.isNotBlank() }.joinToString("，")
 
     private fun createRankRow(song: Song, index: Int): View {
         val order = pageOffset + index + 1
@@ -475,7 +466,7 @@ class SongListAdapter(
 
     private fun configureSongCard(card: View, song: Song, songIndex: Int) {
         card.id = cardId(songIndex)
-        card.setAccessibleFocus(FOCUS_PREFIX + songKey(song), songSpokenLabel(song, stateFor(song)))
+        card.setAccessibleFocus(FOCUS_PREFIX + songKey(song), songSpokenLabel(song))
         (card as? ViewGroup)?.descendantFocusability = ViewGroup.FOCUS_BLOCK_DESCENDANTS
         installPressAnimation(card)
         card.setOnClickListener { callbacks.onPrimary(song) }

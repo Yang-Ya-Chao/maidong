@@ -230,6 +230,7 @@ object SongOkDownloadManager {
         if (reportRange) synchronized(job) { job.inFlight[start] = 0L }
         try {
             connection.connectTimeout=15_000; connection.readTimeout=30_000
+            connection.setRequestProperty("User-Agent", IgebaApiClient.USER_AGENT)
             connection.setRequestProperty("Range","bytes=$start-$wireEnd")
             connection.setRequestProperty("Accept-Encoding","identity")
             val code=connection.responseCode

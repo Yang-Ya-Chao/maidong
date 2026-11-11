@@ -11,6 +11,7 @@ import java.net.URLEncoder
 object IgebaApiClient {
     const val CLOUD_URL = "http://app.ige8.net/cloud.php"
     const val ADDRESS_URL = "http://app.ige8.net/telnet.php"
+    const val USER_AGENT = "Mozilla/3.0 (compatible; Indy Library)"
 
 
     fun post(command: String, params: JSONObject, address: Boolean = false): JSONObject {
@@ -27,6 +28,7 @@ object IgebaApiClient {
             connection.readTimeout = 40_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            connection.setRequestProperty("User-Agent", USER_AGENT)
             IgebaAccount.attach(connection)
             connection.outputStream.use { it.write(body) }
             if (connection.responseCode !in 200..299) throw IOException("目录接口 HTTP ${connection.responseCode}")

@@ -29,8 +29,8 @@ android {
             }
         }
         targetSdk 25
-        versionCode 13
-        versionName "2.1.10"
+        versionCode 14
+        versionName "2.1.11"
 
     }
 

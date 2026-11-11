@@ -115,6 +115,7 @@ internal object IgebaAccount {
             connection.readTimeout = 30_000
             connection.doOutput = true
             connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            connection.setRequestProperty("User-Agent", IgebaApiClient.USER_AGENT)
             jar.get(target.toURI(), emptyMap()).forEach { (key, values) ->
                 if (key.equals("Cookie", true)) connection.setRequestProperty(key, values.joinToString("; "))
             }
@@ -124,7 +125,19 @@ internal object IgebaAccount {
             }.toByteArray(Charsets.UTF_8)
             connection.setFixedLengthStreamingMode(body.size)
             connection.outputStream.use { it.write(body) }
-            if (connection.responseCode !in 200..299) throw IOException("账号服务 HTTP ${connection.responseCode}")
+            val status = connection.responseCode
+            if (status !in 200..299) {
+                if (BuildConfig.DEBUG && command == "DO_LOGIN") {
+                    val type = connection.contentType?.substringBefore(';')?.take(80)
+                    val server = connection.getHeaderField("Server")?.take(80)
+                    android.util.Log.w(
+                        "IgebaLogin",
+                        "host=${connection.url.host} status=$status type=$type server=$server " +
+                            "proxy=${connection.usingProxy()}"
+                    )
+                }
+                throw IOException("账号服务 HTTP $status")
+            }
             jar.put(target.toURI(), connection.headerFields.filterKeys { it != null })
             return JSONObject(connection.inputStream.bufferedReader(Charsets.UTF_8).use { it.readText() })
         } finally { connection.disconnect() }
