@@ -4,7 +4,7 @@
 
 <h1 align="center">麦动 KTV</h1>
 
-<p align="center">面向 Android TV 和横屏点歌设备的本地 KTV 应用</p>
+<p align="center">面向 Android TV 横屏点歌设备的本地 KTV 应用</p>
 
 <p align="center">遥控器操作 · 歌曲检索 · 点播队列 · 下载管理 · 稳定播放</p>
 
