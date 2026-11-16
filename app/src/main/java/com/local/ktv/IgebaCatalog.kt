@@ -220,7 +220,7 @@ class IgebaCatalog {
 
     companion object {
         const val PAGE_SIZE = 10
-        const val VIDEO_ROOT = AppPaths.VIDEO_PATH
+        val VIDEO_ROOT = AppPaths.VIDEO_PATH
         const val CLOUD_SONG_DIR = "cloud-song"
         const val LOCAL_SONG_DIR = "local"
         private const val SELECT = "SELECT s.number,s.name,s.singer,s.language,s.filename,s.version,s.duration,s.voice_channel,s.pinyin,s.pinyin_full,s.album FROM source_songs s"

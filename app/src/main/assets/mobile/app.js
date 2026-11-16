@@ -22,7 +22,8 @@ function setConnected(connected) {
 
 async function api(path, options = {}) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 8000);
+  // 老电视上曲库 LIKE 搜索较慢(可达十几秒)，超时放宽到 30s，避免搜索被提前中断。
+  const timeout = window.setTimeout(() => controller.abort(), 30000);
   try {
     let response;
     try {
