@@ -7583,42 +7583,60 @@ class MainActivity : AppCompatActivity() {
     private fun updateRankCategoryGrid() {
         val grid = rankCategoryGrid ?: return
         grid.removeAllViews()
-        currentCategories.take(9).forEachIndexed { index, title ->
-            val tile = TextView(this).apply {
-                text = title
-                textSize = 14f
-                setTextColor(Color.WHITE)
-                gravity = Gravity.CENTER
-                isClickable = true
-                isFocusable = true
-                setBackgroundResource(
-                    if (index == currentCategoryIndex) R.drawable.ott_bg_rank_item_selected
-                    else R.drawable.ott_bg_rank_item_not_selected
-                )
-                val trophy = getDrawable(R.drawable.ic_default_rank_avatar)?.mutate()
-                trophy?.setBounds(0, 0, dp(42), dp(42))
-                setCompoundDrawables(null, trophy, null, null)
-                compoundDrawablePadding = dp(1)
-                setOnClickListener {
-                    if (index == currentCategoryIndex) return@setOnClickListener
-                    currentCategoryIndex = index
-                    browseMode = "rank"
-                    browseParam = rankPlaylistIds.getOrNull(index).orEmpty()
-                    browsePage = 0
-                    listTitle?.text = title
-                    updateRankCategoryGrid()
-                    loadBrowsePage()
-                }
+        val categories = currentCategories.take(9)
+        if (categories.isEmpty()) return
+        // 部分 Android 5.1 固件上 GridLayout 的权重(width=0 + spec(weight))不生效，格子会塌成 0 尺寸；
+        // 因此等网格测量完成后，按实际尺寸手动均分每个格子，避免依赖权重，兼容各版本。
+        grid.post {
+            if (grid.width <= 0 || grid.height <= 0) return@post
+            val columns = 3
+            val rows = (categories.size + columns - 1) / columns
+            val margin = dp(3)
+            val cellW = (grid.width - grid.paddingLeft - grid.paddingRight - margin * 2 * columns) / columns
+            val cellH = (grid.height - grid.paddingTop - grid.paddingBottom - margin * 2 * rows) / rows
+            grid.removeAllViews()
+            categories.forEachIndexed { index, title ->
+                val tile = createRankTile(title, index)
+                grid.addView(tile, GridLayout.LayoutParams().apply {
+                    rowSpec = GridLayout.spec(index / columns)
+                    columnSpec = GridLayout.spec(index % columns)
+                    width = cellW
+                    height = cellH
+                    setMargins(margin, margin, margin, margin)
+                })
             }
-            installPressFeedback(tile)
-            grid.addView(tile, GridLayout.LayoutParams().apply {
-                rowSpec = GridLayout.spec(index / 3, 1f)
-                columnSpec = GridLayout.spec(index % 3, 1f)
-                width = 0
-                height = 0
-                setMargins(dp(3), dp(3), dp(3), dp(3))
-            })
         }
+    }
+
+    private fun createRankTile(title: String, index: Int): TextView {
+        val tile = TextView(this).apply {
+            text = title
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            gravity = Gravity.CENTER
+            isClickable = true
+            isFocusable = true
+            setBackgroundResource(
+                if (index == currentCategoryIndex) R.drawable.ott_bg_rank_item_selected
+                else R.drawable.ott_bg_rank_item_not_selected
+            )
+            val trophy = getDrawable(R.drawable.ic_default_rank_avatar)?.mutate()
+            trophy?.setBounds(0, 0, dp(42), dp(42))
+            setCompoundDrawables(null, trophy, null, null)
+            compoundDrawablePadding = dp(1)
+            setOnClickListener {
+                if (index == currentCategoryIndex) return@setOnClickListener
+                currentCategoryIndex = index
+                browseMode = "rank"
+                browseParam = rankPlaylistIds.getOrNull(index).orEmpty()
+                browsePage = 0
+                listTitle?.text = title
+                updateRankCategoryGrid()
+                loadBrowsePage()
+            }
+        }
+        installPressFeedback(tile)
+        return tile
     }
 
     private fun loadCategoryPlaylists() {
