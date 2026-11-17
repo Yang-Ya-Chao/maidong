@@ -7,7 +7,7 @@ import java.util.LinkedHashMap
 import java.util.LinkedHashSet
 
 class KtvStore {
-    private val file = AppPaths.stateFile
+    private val file get() = AppPaths.stateFile
 
     fun stateFile(): File = file
 

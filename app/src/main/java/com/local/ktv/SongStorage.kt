@@ -88,7 +88,8 @@ internal object SongStorage {
             android.os.Environment.isExternalStorageRemovable(primary) &&
                 !android.os.Environment.isExternalStorageEmulated(primary)
         }.getOrDefault(false)
-        val internalPrimary = primary.takeUnless { removablePrimary }
+        val appPrimary = AppPaths.root.parentFile?.canonicalFile
+        val internalPrimary = if (appPrimary == primary && removablePrimary) null else appPrimary ?: primary
         val roots = linkedSetOf<File>()
         fun add(candidate: File) {
             runCatching {
@@ -98,7 +99,7 @@ internal object SongStorage {
                 if (folder.isDirectory && folder.canRead() && folder.listFiles() != null) roots += folder
             }
         }
-        if (removablePrimary && android.os.Environment.getExternalStorageState() in
+        if (internalPrimary == null && removablePrimary && android.os.Environment.getExternalStorageState() in
             setOf(android.os.Environment.MEDIA_MOUNTED, android.os.Environment.MEDIA_MOUNTED_READ_ONLY)) {
             primary?.let(::add)
         }

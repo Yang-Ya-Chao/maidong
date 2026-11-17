@@ -20,10 +20,9 @@ function setConnected(connected) {
     : "<span></span>正在连接麦动 KTV…";
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, timeoutMs = 8000) {
   const controller = new AbortController();
-  // 老电视上曲库 LIKE 搜索较慢(可达十几秒)，超时放宽到 30s，避免搜索被提前中断。
-  const timeout = window.setTimeout(() => controller.abort(), 30000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     let response;
     try {
@@ -143,7 +142,8 @@ async function search(reset = true) {
   }
   uiState.busy = true;
   try {
-    const data = await api(`/api/v1/songs?q=${encodeURIComponent(uiState.query)}&type=${uiState.searchMode}&page=${uiState.page}&pageSize=20`);
+    // 老电视上曲库搜索较慢，单独放宽搜索请求的超时。
+    const data = await api(`/api/v1/songs?q=${encodeURIComponent(uiState.query)}&type=${uiState.searchMode}&page=${uiState.page}&pageSize=20`, {}, 30000);
     const rows = (data.songs || []).map((song, index) => songRow(song, false, false, (uiState.page - 1) * 20 + index)).join("");
     if (rows) $("#results").insertAdjacentHTML("beforeend", rows);
     else if (reset) $("#results").innerHTML = '<div class="empty">没有找到相关歌曲<br><small>请更换关键词后重试</small></div>';
