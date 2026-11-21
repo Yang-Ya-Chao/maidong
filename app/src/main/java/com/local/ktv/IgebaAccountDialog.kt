@@ -55,16 +55,25 @@ internal object IgebaAccountDialog {
             body.addView(this)
         }
         val send = if (registration) Button(activity).apply { text = "获取验证码"; body.addView(this) } else null
+        val submit = Button(activity).apply {
+            text = if (registration) "注册" else "登录"
+            body.addView(this)
+        }
+        val switch = Button(activity).apply {
+            text = if (registration) "返回登录" else "注册账号"
+            body.addView(this)
+        }
+        val cancel = Button(activity).apply {
+            text = "取消"
+            body.addView(this)
+        }
         val dialog = AlertDialog.Builder(activity)
             .setTitle(if (registration) "注册 i歌霸账号" else "登录 i歌霸")
             .setView(ScrollView(activity).apply { addView(body) })
-            .setPositiveButton(if (registration) "注册" else "登录", null)
-            .setNeutralButton(if (registration) "返回登录" else "注册账号", null)
-            .setNegativeButton("取消", null).create()
+            .create()
         dialog.setOnShowListener {
             dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-            val submit = dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-            val switch = dialog.getButton(AlertDialog.BUTTON_NEUTRAL)
+            cancel.setOnClickListener { dialog.dismiss() }
             var busy = false
             var registrationCompleted = false
             val main = Handler(Looper.getMainLooper())
@@ -72,7 +81,7 @@ internal object IgebaAccountDialog {
                 if (busy) return
                 busy = true
                 dialog.setCancelable(false)
-                dialog.getButton(AlertDialog.BUTTON_NEGATIVE).isEnabled = false
+                cancel.isEnabled = false
                 submit.isEnabled = false
                 switch.isEnabled = false
                 send?.isEnabled = false
@@ -83,7 +92,7 @@ internal object IgebaAccountDialog {
                         if (activity.isFinishing || activity.isDestroyed || !dialog.isShowing) return@post
                         busy = false
                         dialog.setCancelable(true)
-                        dialog.getButton(AlertDialog.BUTTON_NEGATIVE).isEnabled = true
+                        cancel.isEnabled = true
                         submit.isEnabled = true
                         switch.isEnabled = true
                         send?.isEnabled = true
