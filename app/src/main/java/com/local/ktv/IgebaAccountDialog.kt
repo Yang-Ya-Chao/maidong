@@ -5,7 +5,10 @@ import android.app.AlertDialog
 import android.os.Handler
 import android.os.Looper
 import android.text.InputType
+import android.view.KeyEvent
+import android.view.ViewTreeObserver
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.CheckBox
 import android.widget.Button
 import android.widget.EditText
@@ -34,11 +37,30 @@ internal object IgebaAccountDialog {
             orientation = LinearLayout.VERTICAL
             setPadding(pad, pad / 2, pad, pad / 2)
         }
+        fun showKeyboard(editor: EditText) {
+            editor.post {
+                if (!editor.hasFocus() || !editor.hasWindowFocus()) return@post
+                val inputMethod = activity.getSystemService(InputMethodManager::class.java)
+                inputMethod?.showSoftInput(editor, 0)
+            }
+        }
+
         fun input(label: String, type: Int) = EditText(activity).apply {
             hint = label
             inputType = type
             isSingleLine = true
             isSaveEnabled = false
+            setOnKeyListener { _, keyCode, event ->
+                val confirm = keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+                    keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
+                if (!confirm) {
+                    return@setOnKeyListener false
+                }
+                if (event.action == KeyEvent.ACTION_UP && !event.isCanceled) {
+                    showKeyboard(this)
+                }
+                true
+            }
             body.addView(this)
         }
         val account = input(if (registration) "中国大陆手机号" else "手机号、邮箱或用户名",
@@ -73,6 +95,20 @@ internal object IgebaAccountDialog {
             .create()
         dialog.setOnShowListener {
             dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            account.requestFocus()
+            if (account.hasWindowFocus()) {
+                showKeyboard(account)
+            } else {
+                account.viewTreeObserver.addOnWindowFocusChangeListener(
+                    object : ViewTreeObserver.OnWindowFocusChangeListener {
+                        override fun onWindowFocusChanged(hasFocus: Boolean) {
+                            if (!hasFocus) return
+                            account.viewTreeObserver.removeOnWindowFocusChangeListener(this)
+                            showKeyboard(account)
+                        }
+                    }
+                )
+            }
             cancel.setOnClickListener { dialog.dismiss() }
             var busy = false
             var registrationCompleted = false
